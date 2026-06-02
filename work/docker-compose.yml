@@ -1,0 +1,30 @@
+services:
+
+# Microsoft SQL Server # --------------------------------------------------------------------------------------------------------------
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql
+    restart: unless-stopped
+    mem_limit: 8g
+    cpus: "4.0"
+    user: "1000:1000"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${DB_SQL_PASSWORD}
+    volumes:
+      - ./mssql:/var/opt/mssql
+      - ./sql:/var/opt/mssql/backup:ro
+      - ./mssql-init/entrypoint.sh:/opt/work-init/entrypoint.sh:ro
+      - ./mssql-init/restore.sql:/opt/work-init/restore.sql:ro
+      - ./mssql-init/sqlcmd:/opt/work-init/sqlcmd:ro
+    command: ["/bin/bash", "/opt/work-init/entrypoint.sh"]
+    ports:
+      - "1433:1433"
+    networks:
+      - proxy_public
+
+networks:
+  proxy_public:
+    external: true

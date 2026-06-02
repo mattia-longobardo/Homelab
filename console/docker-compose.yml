@@ -1,0 +1,108 @@
+services:
+
+# Portainer # --------------------------------------------------------------------------------------------------------------
+  portainer:
+    image: portainer/portainer-ce:lts
+    container_name: portainer
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./portainer:/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer-router.rule=Host(`docker.example.com`)"
+      - "traefik.http.routers.portainer-router.entrypoints=web"
+      - "traefik.http.routers.portainer-router.middlewares=portainer-xfp@docker"
+      - "traefik.http.middlewares.portainer-xfp.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.portainer-xfp.headers.customrequestheaders.X-Forwarded-Port=443"
+      - "traefik.http.services.portainer-service.loadbalancer.server.port=9000"
+    networks:
+      - proxy_public
+
+# Grafana # --------------------------------------------------------------------------------------------------------------
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    user: "1000:1000"
+    volumes:
+      - ./grafana:/var/lib/grafana  # Persists dashboards and users
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.grafana-router.rule=Host(`grafana.example.com`)"
+      - "traefik.http.routers.grafana-router.entrypoints=web"
+      - "traefik.http.services.grafana-service.loadbalancer.server.port=3000"
+    networks:
+      - proxy_public
+      - metrics_internal
+
+
+# Monitoring & Metrics Docker # --------------------------------------------------------------------------------------------------------------
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: "2.0"
+    networks:
+      - proxy_public
+      - metrics_internal
+
+
+# Blackbox Exporter # --------------------------------------------------------------------------------------------------------------
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.25"
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    networks:
+      - metrics_internal
+
+# Node Exporter # --------------------------------------------------------------------------------------------------------------
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    pid: host
+    privileged: true
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:rw,rslave
+      - /run/udev:/run/udev:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.25"
+    networks:
+      - proxy_public
+      - metrics_internal
+
+networks:
+  proxy_public:
+    external: true
+  metrics_internal:
+    external: true
+  db_internal:
+    external: true
