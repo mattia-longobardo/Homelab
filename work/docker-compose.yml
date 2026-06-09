@@ -14,14 +14,38 @@ services:
       MSSQL_PID: Developer
       MSSQL_SA_PASSWORD: ${DB_SQL_PASSWORD}
     volumes:
-      - ./mssql:/var/opt/mssql
-      - ./sql:/var/opt/mssql/backup:ro
-      - ./mssql-init/entrypoint.sh:/opt/work-init/entrypoint.sh:ro
-      - ./mssql-init/restore.sql:/opt/work-init/restore.sql:ro
-      - ./mssql-init/sqlcmd:/opt/work-init/sqlcmd:ro
+      - ./sql-server/data:/var/opt/mssql
+      - ./sql-server/backups:/var/opt/mssql/backup:ro
+      - ./sql-server/init/entrypoint.sh:/opt/work-init/entrypoint.sh:ro
+      - ./sql-server/init/restore.sql:/opt/work-init/restore.sql:ro
+      - ./sql-server/init/sqlcmd:/opt/work-init/sqlcmd:ro
     command: ["/bin/bash", "/opt/work-init/entrypoint.sh"]
     ports:
       - "1433:1433"
+    networks:
+      - proxy_public
+
+# EPM Dash - Business Development Dashboard # --------------------------------------------------------------------------
+
+  epmdash:
+    build: ./dashboard-bepm
+    image: epmdash:latest
+    container_name: epmdash
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1.0"
+    env_file: ./dashboard-bepm/.env
+    environment:
+      PORT: "3000"
+      DATA_DIR: /app/data
+    volumes:
+      - ./dashboard-bepm/data:/app/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.epmdash-router.rule=Host(`epmdash.example.com`)"
+      - "traefik.http.routers.epmdash-router.entrypoints=web"
+      - "traefik.http.services.epmdash-service.loadbalancer.server.port=3000"
     networks:
       - proxy_public
 
