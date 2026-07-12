@@ -1,0 +1,306 @@
+services:
+
+# Bytestash # --------------------------------------------------------------------------------------------------------------
+  bytestash:
+    image: "ghcr.io/jordan-dalby/bytestash:latest"
+    container_name: bytestash
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    volumes:
+      - ./bytestash:/data/snippets
+    environment:
+      BASE_PATH: ""
+      JWT_SECRET: REDACTED
+      TOKEN_EXPIRY: 24h
+      ALLOW_NEW_ACCOUNTS: "true"
+      DEBUG: "true"
+      DISABLE_ACCOUNTS: "false"
+      DISABLE_INTERNAL_ACCOUNTS: "false"
+      OIDC_ENABLED: "false"
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.bytestash-router.rule=Host(`code.example.com`)'
+      - 'traefik.http.routers.bytestash-router.entrypoints=web'
+      - 'traefik.http.services.bytestash-service.loadbalancer.server.port=5000'
+    networks:
+      - proxy_public
+
+# Paperless # --------------------------------------------------------------------------------------------------------------
+
+  paperless-redis:
+    image: redis:latest
+    container_name: paperless-redis
+    volumes:
+      - ./paperless-redis:/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    command: redis-server --requirepass ${DB_PAPERLESS_PASSWORD}
+    networks:
+      - paperless_internal
+
+  paperless-ngx:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless-ngx
+    depends_on:
+      - paperless-redis
+    volumes:
+      - ./paperless-ngx/data:/usr/src/paperless/data
+      - ./paperless-ngx/media:/usr/src/paperless/media
+      - ./paperless-ngx/export:/usr/src/paperless/export
+      - ./paperless-ngx/consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://:${DB_PAPERLESS_PASSWORD}@paperless-redis:6379
+      PAPERLESS_DBHOST: postgres
+      PAPERLESS_DBPASS: ${DB_PAPERLESS_PASSWORD}
+      PAPERLESS_SECRET_KEY: ${SECRET_KEY}
+      PAPERLESS_URL: https://docs.example.com
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: https://docs.example.com
+      PAPERLESS_ALLOWED_HOSTS: docs.example.com, localhost
+      PAPERLESS_CORS_ALLOWED_ORIGINS: https://docs.example.com
+      PAPERLESS_PROXY_HEADERS: "true"
+      PAPERLESS_USE_X_FORWARD_HOST: "true"
+      PAPERLESS_USE_X_FORWARD_PORT: "true"
+      PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      # SSO via Authentik (OIDC via allauth); signup social disabilitati,
+      # l'account esistente è pre-collegato via SocialAccount (uid = sub Authentik).
+      PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect": {"SCOPE": ["openid", "profile", "email"], "APPS": [{"provider_id": "authentik", "name": "Authentik", "client_id": "${PAPERLESS_OIDC_CLIENT_ID}", "secret": "${PAPERLESS_OIDC_CLIENT_SECRET}", "settings": {"server_url": "https://auth.example.com/application/o/paperless/.well-known/openid-configuration"}}]}}'
+      PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS: "false"
+      # Solo SSO: login regolare disabilitato + redirect automatico ad Authentik.
+      # I token API (es. scanner) continuano a funzionare.
+      PAPERLESS_DISABLE_REGULAR_LOGIN: "true"
+      PAPERLESS_REDIRECT_LOGIN_TO_SSO: "true"
+      # SMTP via Stalwart (rete mail_internal, cert LE valido sull'alias)
+      PAPERLESS_EMAIL_HOST: mx.example.com
+      PAPERLESS_EMAIL_PORT: "465"
+      PAPERLESS_EMAIL_USE_SSL: "true"
+      PAPERLESS_EMAIL_HOST_USER: no-reply@example.com
+      PAPERLESS_EMAIL_HOST_PASSWORD: ${SMTP_NOREPLY_PASSWORD}
+      PAPERLESS_EMAIL_FROM: no-reply@example.com
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: "2.0"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.paperless.rule=Host(`docs.example.com`)
+      - traefik.http.routers.paperless.entrypoints=web
+      - "traefik.docker.network=proxy_public"
+      - traefik.http.services.paperless.loadbalancer.server.port=8000
+      - traefik.http.middlewares.paperless-forward.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.routers.paperless.middlewares=paperless-forward
+    networks:
+      - proxy_public
+      - db_internal
+      - paperless_internal
+      - mail_internal
+
+# Seafile # --------------------------------------------------------------------------------------------------------------
+
+  db:
+    image: mariadb:10.11
+    container_name: seafile-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_SEAFILE_PASSWORD}  # Required, set the root's password of MySQL service.
+      - MYSQL_LOG_CONSOLE=true
+      - MARIADB_AUTO_UPGRADE=1
+    volumes:
+      - /home/mattia/storage/seafile/seafile-mysql/db:/var/lib/mysql  # Required, specifies the path to MySQL data persistent store.
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: "2.0"
+    networks:
+      - seafile_internal
+
+  memcached:
+    image: memcached:1.6.18
+    container_name: seafile-memcached
+    entrypoint: memcached -m 256
+    restart: unless-stopped
+    mem_limit: 384m
+    cpus: "0.5"
+    networks:
+      - seafile_internal
+          
+  seafile:
+    image: seafileltd/seafile-mc:11.0-latest
+    container_name: seafile
+    volumes:
+      - /home/mattia/storage/seafile/seafile-data:/shared   # Required, specifies the path to Seafile data persistent store.
+    tmpfs:
+      - /opt/seafile/pids:mode=1777
+    environment:
+      - NON_ROOT=true  # Run server as the 'seafile' user (uid 8000) instead of root; /shared must be owned by 8000:8000.
+      - DB_HOST=db
+      - DB_ROOT_PASSWD=${DB_SEAFILE_PASSWORD}  # Required, the value should be root's password of MySQL service.
+      - TIME_ZONE=Europe/Rome  # Optional, default is UTC. Should be uncomment and set to your local time zone.
+      - SEAFILE_ADMIN_EMAIL=${SEAFILE_ADMIN_EMAIL} # Specifies Seafile admin user, default is 'me@example.com'.
+      - SEAFILE_ADMIN_PASSWORD=${SEAFILE_ADMIN_PASSWORD}     # Specifies Seafile admin password, default is 'asecret'.
+      - SEAFILE_SERVER_LETSENCRYPT=false
+      - SEAFILE_SERVER_HOSTNAME=${SEAFILE_SERVER_HOSTNAME}
+    depends_on:
+      - db
+      - memcached
+    restart: unless-stopped
+    mem_limit: 3g
+    cpus: "2.0"
+    healthcheck:
+      # Catches the "container Up but internal nginx returns 502" failure mode
+      # (seahub/seaf-server died, or bootstrap stuck unable to resolve the DB host).
+      # curl -f fails on 5xx and on connection refused; the healthy login redirect (302) passes.
+      test: ["CMD", "curl", "-fsS", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+    labels:
+      - 'autoheal=true'  # restarted by the autoheal container (network stack) when unhealthy
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy_public'
+      - 'traefik.http.routers.seafile-router.rule=Host(`cloud.example.com`)'
+      - 'traefik.http.routers.seafile-router.entrypoints=web'
+      - 'traefik.http.services.seafile-service.loadbalancer.server.port=80'
+    networks:
+      - proxy_public
+      - seafile_internal
+      # SMTP config in seahub_settings.py (EMAIL_HOST=mx.example.com)
+      - mail_internal
+
+# Teable # --------------------------------------------------------------------------------------------------------------
+
+  teable-redis:
+    image: redis:latest
+    container_name: teable-redis
+    volumes:
+      - ./teable-redis:/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    command: redis-server --requirepass ${DB_TEABLE_PASSWORD}
+    networks:
+      - teable_internal
+
+  teable:
+    image: ghcr.io/teableio/teable:latest
+    container_name: teable
+    depends_on:
+      - teable-redis
+    volumes:
+      - ./teable:/app/.assets:rw
+    environment:
+      # --- Basic Configuration ---
+      - NEXT_ENV_IMAGES_ALL_REMOTE=true
+      - POSTGRES_PASSWORD=${DB_TEABLE_PASSWORD}
+      - REDIS_PASSWORD=${DB_TEABLE_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
+      - PUBLIC_ORIGIN=https://db.example.com
+
+      # --- Postgres Configuration ---
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=teable
+      - POSTGRES_USER=teable
+      
+      # --- Redis Configuration ---
+      - REDIS_HOST=teable-redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+
+      # --- App / Connection Strings (MUST BE MANUALLY EXPANDED) ---
+      
+      # Format: postgresql://USER:PASSWORD@HOST:PORT/DB
+      - PRISMA_DATABASE_URL=postgresql://teable:${DB_TEABLE_PASSWORD}@postgres:5432/teable
+      - BACKEND_CACHE_PROVIDER=redis
+      - BACKEND_CACHE_REDIS_URI=redis://default:${DB_TEABLE_PASSWORD}@teable-redis:6379/0
+
+      # --- SSO via Authentik (OIDC): match automatico per email ---
+      - SOCIAL_AUTH_PROVIDERS=oidc
+      - BACKEND_OIDC_CLIENT_ID=${TEABLE_OIDC_CLIENT_ID}
+      - BACKEND_OIDC_CLIENT_SECRET=${TEABLE_OIDC_CLIENT_SECRET}
+      - BACKEND_OIDC_CALLBACK_URL=https://db.example.com/api/auth/oidc/callback
+      - BACKEND_OIDC_AUTHORIZATION_URL=https://auth.example.com/application/o/authorize/
+      - BACKEND_OIDC_TOKEN_URL=https://auth.example.com/application/o/token/
+      - BACKEND_OIDC_USER_INFO_URL=https://auth.example.com/application/o/userinfo/
+      - BACKEND_OIDC_ISSUER=https://auth.example.com/application/o/teable/
+      - BACKEND_OIDC_OTHER={"scope":["openid","profile","email"]}
+
+      # --- SMTP via Stalwart (rete mail_internal) ---
+      - BACKEND_MAIL_HOST=mx.example.com
+      - BACKEND_MAIL_PORT=465
+      - BACKEND_MAIL_SECURE=true
+      - BACKEND_MAIL_SENDER=no-reply@example.com
+      - BACKEND_MAIL_SENDER_NAME=Teable
+      - BACKEND_MAIL_AUTH_USER=no-reply@example.com
+      - BACKEND_MAIL_AUTH_PASS=${SMTP_NOREPLY_PASSWORD}
+    restart: unless-stopped
+    mem_limit: 3g
+    cpus: "2.0"
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy_public'
+      - 'traefik.http.routers.teable-router.rule=Host(`db.example.com`)'
+      - 'traefik.http.routers.teable-router.entrypoints=web'
+      - 'traefik.http.middlewares.teable-headers.headers.customrequestheaders.Host=db.example.com'
+      - 'traefik.http.routers.teable-router.middlewares=teable-headers'
+      - 'traefik.http.services.teable-service.loadbalancer.server.port=3000'
+    networks:
+      - proxy_public
+      - db_internal
+      - teable_internal
+      - mail_internal
+
+# Mathesar # --------------------------------------------------------------------------------------------------------------
+
+  mathesar:
+    image: mathesar/mathesar:latest
+    container_name: mathesar
+    environment:
+      DOMAIN_NAME: ${MATHESAR_HOSTNAME}
+      ALLOWED_HOSTS: "*"
+      SECRET_KEY: ${MATHESAR_SECRET_KEY}
+      POSTGRES_DB: mathesar
+      POSTGRES_USER: mathesar
+      POSTGRES_PASSWORD: ${DB_MATHESAR_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    volumes:
+      - ./mathesar/static:/code/static
+      - ./mathesar/media:/code/.media
+      - ./mathesar/secrets:/code/.secrets
+    # PostgreSQL interno dell'immagine all-in-one: inutilizzato (DB su postgres esterno).
+    # tmpfs evita la creazione di volumi anonimi persistenti ad ogni ricreazione.
+    tmpfs:
+      - /etc/postgresql
+      - /var/lib/postgresql
+    restart: unless-stopped
+    mem_limit: 1536m
+    cpus: "1.5"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.mathesar-router.rule=Host(`${MATHESAR_HOSTNAME}`)"
+      - "traefik.http.routers.mathesar-router.entrypoints=web"
+      - "traefik.http.routers.mathesar-router.middlewares=mathesar-https@docker"
+      - "traefik.http.middlewares.mathesar-https.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.services.mathesar-service.loadbalancer.server.port=8000"
+    networks:
+      - proxy_public
+      - db_internal
+
+networks:
+  proxy_public:
+    external: true
+  db_internal:
+    external: true
+  mail_internal:
+    external: true
+  paperless_internal:
+    name: paperless_internal
+    internal: true
+  seafile_internal:
+    name: seafile_internal
+    internal: true
+  teable_internal:
+    name: teable_internal
+    internal: true

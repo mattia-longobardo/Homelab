@@ -1,0 +1,283 @@
+services:
+
+# NetBird # --------------------------------------------------------------------------------------------------------------
+
+  netbird-server:
+    image: netbirdio/netbird-server:latest
+    container_name: netbird-server
+    user: "1000:1000"
+    volumes:
+      - ./netbird/config.yaml:/etc/netbird/config.yaml:ro
+      - ./netbird/data:/var/lib/netbird
+    command: ["--config", "/etc/netbird/config.yaml"]
+    ports:
+      # L4 exception: embedded STUN needs raw UDP (Traefik cannot proxy it).
+      # Router must forward UDP 3478 here for external NAT traversal.
+      - "3478:3478/udp"
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      # gRPC (Management + Signal) — h2c backend, most specific paths, highest priority.
+      # websecure+TLS: vpn.example.com is DNS-only (no CF proxy), Traefik owns TLS.
+      - "traefik.http.routers.netbird-grpc-router.rule=Host(`vpn.example.com`) && (PathPrefix(`/signalexchange.SignalExchange/`) || PathPrefix(`/management.ManagementService/`) || PathPrefix(`/management.ProxyService/`))"
+      - "traefik.http.routers.netbird-grpc-router.entrypoints=websecure"
+      - "traefik.http.routers.netbird-grpc-router.tls=true"
+      - "traefik.http.routers.netbird-grpc-router.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.netbird-grpc-router.priority=100"
+      - "traefik.http.routers.netbird-grpc-router.service=netbird-grpc-service"
+      - "traefik.http.routers.netbird-grpc-router.middlewares=netbird-https"
+      - "traefik.http.services.netbird-grpc-service.loadbalancer.server.port=8080"
+      - "traefik.http.services.netbird-grpc-service.loadbalancer.server.scheme=h2c"
+      # REST API, Relay (WSS), ws-proxy and embedded Dex (/oauth2).
+      - "traefik.http.routers.netbird-api-router.rule=Host(`vpn.example.com`) && (PathPrefix(`/api`) || PathPrefix(`/relay`) || PathPrefix(`/ws-proxy/`) || PathPrefix(`/oauth2`))"
+      - "traefik.http.routers.netbird-api-router.entrypoints=websecure"
+      - "traefik.http.routers.netbird-api-router.tls=true"
+      - "traefik.http.routers.netbird-api-router.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.netbird-api-router.priority=90"
+      - "traefik.http.routers.netbird-api-router.service=netbird-api-service"
+      - "traefik.http.routers.netbird-api-router.middlewares=netbird-https"
+      - "traefik.http.services.netbird-api-service.loadbalancer.server.port=8080"
+      # Tell the server it is behind HTTPS so the embedded IdP builds https URLs.
+      - "traefik.http.middlewares.netbird-https.headers.customrequestheaders.X-Forwarded-Proto=https"
+    networks:
+      - proxy_public
+
+  netbird-dashboard:
+    image: netbirdio/dashboard:latest
+    container_name: netbird-dashboard
+    env_file:
+      - ./netbird/dashboard.env
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      # Catch-all for the host — serves the SPA; lower priority than the server routes above.
+      - "traefik.http.routers.netbird-dashboard-router.rule=Host(`vpn.example.com`)"
+      - "traefik.http.routers.netbird-dashboard-router.entrypoints=websecure"
+      - "traefik.http.routers.netbird-dashboard-router.tls=true"
+      - "traefik.http.routers.netbird-dashboard-router.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.netbird-dashboard-router.priority=10"
+      - "traefik.http.routers.netbird-dashboard-router.service=netbird-dashboard-service"
+      - "traefik.http.services.netbird-dashboard-service.loadbalancer.server.port=80"
+    networks:
+      - proxy_public
+
+# NetBird Client # --------------------------------------------------------------------------------------------------------------
+
+  netbird-client:
+    image: netbirdio/netbird:latest
+    container_name: netbird-client
+    network_mode: host
+    environment:
+      - NB_SETUP_KEY=${NETBIRD_SETUP_KEY}
+      - NB_MANAGEMENT_URL=https://vpn.example.com
+      - NB_HOSTNAME=homelab
+    volumes:
+      - ./netbird-client:/var/lib/netbird
+    cap_add:
+      # VPN agent: creates the WireGuard interface and manages host routes/iptables.
+      - NET_ADMIN
+      - SYS_ADMIN
+    devices:
+      - /dev/net/tun
+    restart: always
+    mem_limit: 256m
+    cpus: "0.5"
+
+# Frigate # --------------------------------------------------------------------------------------------------------------
+
+  frigate:
+    container_name: frigate
+    stop_grace_period: 20s
+    image: ghcr.io/blakeblackshear/frigate:stable
+    shm_size: "512mb" # update for your cameras based on calculation above
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./frigate/config:/config
+      - ./frigate/storage:/media/frigate
+      - type: tmpfs # Optional: 1GB of memory, reduces SSD/SD Card wear
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      - "8554:8554" # RTSP feeds
+      - "8555:8555/tcp" # WebRTC over tcp
+      - "8555:8555/udp" # WebRTC over udp
+    restart: unless-stopped
+    mem_limit: 6g
+    cpus: "4.0"
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.frigate-router.rule=Host(`cam.local`)'
+      - 'traefik.http.routers.frigate-router.entrypoints=web'
+      - 'traefik.http.services.frigate-service.loadbalancer.server.port=5000'
+    networks:
+      - proxy_public
+
+# Authentik # --------------------------------------------------------------------------------------------------------------
+
+  authentik-redis:
+    image: redis:latest
+    container_name: authentik-redis
+    command: redis-server --save 60 1
+    volumes:
+      - ./authentik-redis:/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - authentik_internal
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: authentik-server
+    depends_on:
+      - authentik-redis
+    command: server
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${DB_AUTHENTIK_PASSWORD}
+      AUTHENTIK_EMAIL__HOST: mx.example.com
+      AUTHENTIK_EMAIL__PORT: "465"
+      AUTHENTIK_EMAIL__USE_SSL: "true"
+      AUTHENTIK_EMAIL__USERNAME: no-reply@example.com
+      AUTHENTIK_EMAIL__PASSWORD: ${SMTP_NOREPLY_PASSWORD}
+      AUTHENTIK_EMAIL__FROM: Authentik <no-reply@example.com>
+      AUTHENTIK_EMAIL__TIMEOUT: "10"
+    volumes:
+      - ./authentik/media:/media
+      - ./authentik/templates:/templates
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.authentik-router.rule=Host(`auth.example.com`)"
+      - "traefik.http.routers.authentik-router.entrypoints=web"
+      - "traefik.http.services.authentik-service.loadbalancer.server.port=9000"
+      - "traefik.http.middlewares.authentik-https.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.authentik-router.middlewares=authentik-https"
+    networks:
+      - proxy_public
+      - db_internal
+      - authentik_internal
+      - mail_internal
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: authentik-worker
+    depends_on:
+      - authentik-redis
+    command: worker
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${DB_AUTHENTIK_PASSWORD}
+      AUTHENTIK_EMAIL__HOST: mx.example.com
+      AUTHENTIK_EMAIL__PORT: "465"
+      AUTHENTIK_EMAIL__USE_SSL: "true"
+      AUTHENTIK_EMAIL__USERNAME: no-reply@example.com
+      AUTHENTIK_EMAIL__PASSWORD: ${SMTP_NOREPLY_PASSWORD}
+      AUTHENTIK_EMAIL__FROM: Authentik <no-reply@example.com>
+      AUTHENTIK_EMAIL__TIMEOUT: "10"
+    volumes:
+      - ./authentik/media:/media
+      - ./authentik/templates:/templates
+      - ./authentik/certs:/certs
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    networks:
+      - db_internal
+      - authentik_internal
+      # Il worker invia le email (task in background): serve la rete SMTP,
+      # non proxy_public.
+      - mail_internal
+
+# Vaultwarden # --------------------------------------------------------------------------------------------------------------
+
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    user: "1000:1000"
+    environment:
+      - DOMAIN=https://vault.example.com
+      - SIGNUPS_ALLOWED=false
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
+      - TZ=Europe/Rome
+      - SMTP_HOST=stalwart
+      - SMTP_FROM=no-reply@example.com
+      - SMTP_FROM_NAME=Vaultwarden
+      - SMTP_PORT=465
+      - SMTP_SECURITY=force_tls
+      - SMTP_USERNAME=no-reply@example.com
+      - SMTP_PASSWORD=${VAULTWARDEN_SMTP_PASSWORD}
+      - SMTP_ACCEPT_INVALID_HOSTNAMES=true
+      - SSO_ENABLED=true
+      - SSO_AUTHORITY=https://auth.example.com/application/o/vaultwarden/
+      - SSO_CLIENT_ID=${VAULTWARDEN_SSO_CLIENT_ID}
+      - SSO_CLIENT_SECRET=${VAULTWARDEN_SSO_CLIENT_SECRET}
+      - SSO_SCOPES=email profile
+      - SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION=true
+      # Login SOLO via Authentik (niente form password); la master password
+      # resta comunque necessaria per la decifratura del vault (by design).
+      - SSO_ONLY=true
+    volumes:
+      - ./vaultwarden:/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.vaultwarden-router.rule=Host(`vault.example.com`)"
+      - "traefik.http.routers.vaultwarden-router.entrypoints=web"
+      - "traefik.http.services.vaultwarden-service.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.vaultwarden-https.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.vaultwarden-router.middlewares=vaultwarden-https"
+    networks:
+      - proxy_public
+
+networks:
+  proxy_public:
+    external: true
+  db_internal:
+    external: true
+  mail_internal:
+    external: true
+  authentik_internal:
+    name: authentik_internal
+    internal: true
