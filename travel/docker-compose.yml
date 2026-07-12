@@ -1,0 +1,232 @@
+services:
+
+# Trek # --------------------------------------------------------------------------------------------------------------
+
+  trek:
+    image: mauriceboe/trek:latest
+    container_name: trek
+    # No `user:` override: the image's entrypoint starts as root and drops to its
+    # bundled `node` user (UID 1000) itself; forcing user: breaks that su and the
+    # container crash-loops with "failed switching to 'node': operation not permitted".
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - TZ=Europe/Rome
+      - ENCRYPTION_KEY=${TREK_ENCRYPTION_KEY}
+      - APP_URL=https://trip.example.com
+      - FORCE_HTTPS=true
+      - TRUST_PROXY=1
+      - LOG_LEVEL=info
+      - ADMIN_EMAIL=${TREK_ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${TREK_ADMIN_PASSWORD}
+      # SSO via Authentik (OIDC): aggancio all'account esistente per email/sub.
+      # Niente OIDC_ONLY: gli altri utenti continuano col login password.
+      - OIDC_ISSUER=https://auth.example.com/application/o/trek/
+      - OIDC_CLIENT_ID=${TREK_OIDC_CLIENT_ID}
+      - OIDC_CLIENT_SECRET=${TREK_OIDC_CLIENT_SECRET}
+      - OIDC_DISPLAY_NAME=Authentik
+      # SMTP via Stalwart (rete mail_internal): le env hanno priorità sulle
+      # impostazioni UI; porta 465 = TLS implicito (secure) per l'app.
+      - SMTP_HOST=mx.example.com
+      - SMTP_PORT=465
+      - SMTP_USER=no-reply@example.com
+      - SMTP_PASS=${SMTP_NOREPLY_PASSWORD}
+      - SMTP_FROM=no-reply@example.com
+    volumes:
+      - ./trek/data:/app/data
+      - ./trek/uploads:/app/uploads
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - 'autoheal=true'
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy_public'
+      - 'traefik.http.routers.trek-router.rule=Host(`trip.example.com`)'
+      - 'traefik.http.routers.trek-router.entrypoints=web'
+      - 'traefik.http.services.trek-service.loadbalancer.server.port=3000'
+      - 'traefik.http.middlewares.trek-https.headers.customrequestheaders.X-Forwarded-Proto=https'
+      - 'traefik.http.routers.trek-router.middlewares=trek-https'
+    networks:
+      - proxy_public
+      - mail_internal
+
+# AirTrail # --------------------------------------------------------------------------------------------------------------
+
+  airtrail:
+    image: johly/airtrail:latest
+    container_name: airtrail
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Rome
+      - ORIGIN=https://fly.example.com
+      # DB sul Postgres condiviso (stack db/, rete db_internal)
+      - DB_URL=postgres://airtrail:${DB_AIRTRAIL_PASSWORD}@postgres:5432/airtrail
+      # Senza UPLOAD_LOCATION gli upload (es. loghi compagnie) sono disabilitati
+      - UPLOAD_LOCATION=/app/uploads
+      # SSO via Authentik (OIDC): l'account esistente è associato via oauth_id
+      # (= sub Authentik) impostato direttamente nel DB.
+      - OAUTH_ENABLED=true
+      - OAUTH_ISSUER_URL=https://auth.example.com/application/o/airtrail/
+      - OAUTH_CLIENT_ID=${AIRTRAIL_OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${AIRTRAIL_OAUTH_CLIENT_SECRET}
+      - OAUTH_SCOPE=openid profile email
+      - OAUTH_BUTTON_TEXT=Login con Authentik
+      # Solo SSO: form password nascosto + redirect automatico ad Authentik
+      - OAUTH_HIDE_PASSWORD_FORM=true
+      - OAUTH_AUTO_LOGIN=true
+    volumes:
+      - ./airtrail/uploads:/app/uploads
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    healthcheck:
+      # Script incluso nell'immagine: GET /api/ping, exit 1 se != "pong"
+      test: ["CMD", "node", "/app/docker/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - 'autoheal=true'
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy_public'
+      - 'traefik.http.routers.airtrail-router.rule=Host(`fly.example.com`)'
+      - 'traefik.http.routers.airtrail-router.entrypoints=web'
+      - 'traefik.http.services.airtrail-service.loadbalancer.server.port=3000'
+      - 'traefik.http.middlewares.airtrail-https.headers.customrequestheaders.X-Forwarded-Proto=https'
+      - 'traefik.http.routers.airtrail-router.middlewares=airtrail-https'
+    networks:
+      - proxy_public
+      - db_internal
+
+# Dawarich # --------------------------------------------------------------------------------------------------------------
+
+  dawarich-db:
+    image: postgis/postgis:17-3.5-alpine
+    container_name: dawarich-db
+    environment:
+      POSTGRES_USER: dawarich
+      POSTGRES_PASSWORD: ${DB_DAWARICH_PASSWORD}
+      POSTGRES_DB: dawarich
+    volumes:
+      - ./dawarich-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dawarich"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - travel_app_internal
+
+  dawarich-redis:
+    image: redis:latest
+    container_name: dawarich-redis
+    volumes:
+      - ./dawarich-redis:/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - travel_app_internal
+
+  dawarich:
+    image: freikin/dawarich:latest
+    container_name: dawarich
+    depends_on:
+      - dawarich-db
+      - dawarich-redis
+    environment: &dawarich-env
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      SELF_HOSTED: "true"
+      REDIS_URL: redis://dawarich-redis:6379/0
+      DATABASE_HOST: dawarich-db
+      DATABASE_PORT: "5432"
+      DATABASE_USERNAME: dawarich
+      DATABASE_PASSWORD: ${DB_DAWARICH_PASSWORD}
+      DATABASE_NAME: dawarich
+      SECRET_KEY_BASE: ${DAWARICH_SECRET_KEY_BASE}
+      OTP_ENCRYPTION_PRIMARY_KEY: ${DAWARICH_OTP_PRIMARY_KEY}
+      OTP_ENCRYPTION_DETERMINISTIC_KEY: ${DAWARICH_OTP_DETERMINISTIC_KEY}
+      OTP_ENCRYPTION_KEY_DERIVATION_SALT: ${DAWARICH_OTP_SALT}
+      APPLICATION_HOSTS: loc.example.com
+      APPLICATION_PROTOCOL: https
+      DOMAIN: loc.example.com
+      # SSO via Authentik (OIDC): match automatico per email (Devise, case-insensitive)
+      OIDC_CLIENT_ID: ${DAWARICH_OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${DAWARICH_OIDC_CLIENT_SECRET}
+      OIDC_ISSUER: https://auth.example.com/application/o/dawarich/
+      OIDC_REDIRECT_URI: https://loc.example.com/users/auth/openid_connect/callback
+      OIDC_PROVIDER_NAME: Authentik
+      # Solo SSO: login email+password disabilitato (revert: rimuovere questa riga)
+      ALLOW_EMAIL_PASSWORD_LOGIN: "false"
+      TIME_ZONE: Europe/Rome
+      RAILS_MAX_THREADS: "5"
+    entrypoint: web-entrypoint.sh
+    command: ['bin/rails', 'server', '-p', '3000', '-b', '::']
+    volumes:
+      - ./dawarich/public:/var/app/public
+      - ./dawarich/watched:/var/app/tmp/imports/watched
+      - ./dawarich/storage:/var/app/storage
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: "1.5"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.dawarich-router.rule=Host(`loc.example.com`)"
+      - "traefik.http.routers.dawarich-router.entrypoints=web"
+      - "traefik.http.services.dawarich-service.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.dawarich-https.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.dawarich-router.middlewares=dawarich-https"
+    networks:
+      - proxy_public
+      - travel_app_internal
+
+  dawarich-sidekiq:
+    image: freikin/dawarich:latest
+    container_name: dawarich-sidekiq
+    depends_on:
+      - dawarich-db
+      - dawarich-redis
+      - dawarich
+    environment: *dawarich-env
+    entrypoint: sidekiq-entrypoint.sh
+    command: ['sidekiq']
+    volumes:
+      - ./dawarich/public:/var/app/public
+      - ./dawarich/watched:/var/app/tmp/imports/watched
+      - ./dawarich/storage:/var/app/storage
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1.0"
+    networks:
+      - travel_app_internal
+
+networks:
+  proxy_public:
+    external: true
+  mail_internal:
+    external: true
+  db_internal:
+    external: true
+  travel_app_internal:
+    name: travel_app_internal
+    internal: true
