@@ -1,0 +1,9 @@
+*
+!/.gitignore
+.claude/
+!*/
+!docker-compose.yml
+!/README.md
+projects/
+website/
+work/
