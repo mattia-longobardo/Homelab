@@ -187,6 +187,51 @@ services:
     networks:
       - proxy_public
 
+# Tdarr # --------------------------------------------------------------------------------------------------------------
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr:latest
+    container_name: tdarr
+    environment:
+      - TZ=Europe/Rome
+      - PUID=1000
+      - PGID=1000
+      - serverIP=0.0.0.0
+      - serverPort=8266
+      - webUIPort=8265
+      - internalNode=true
+      - inContainer=true
+      - nodeName=nas-node
+    volumes:
+      - ./tdarr/server:/app/server
+      - ./tdarr/configs:/app/configs
+      - ./tdarr/logs:/app/logs
+      - ../../storage/private:/mnt/private
+      - ../../storage/tdarr_cache:/temp
+    ports:
+      - "8266:8266" # protocollo nodo Tdarr (PC Windows in LAN) - non proxabile via Traefik
+    restart: unless-stopped
+    mem_limit: 6g
+    cpus: "8.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8265"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy_public'
+      - 'traefik.http.routers.tdarr-router.rule=Host(`tdarr.local`)'
+      - 'traefik.http.routers.tdarr-router.entrypoints=web'
+      - 'traefik.http.services.tdarr-service.loadbalancer.server.port=8265'
+    networks:
+      - proxy_public
+
 networks:
   proxy_public:
     external: true
