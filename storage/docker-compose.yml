@@ -11,7 +11,7 @@ services:
       - ./bytestash:/data/snippets
     environment:
       BASE_PATH: ""
-      JWT_SECRET: REDACTED
+      JWT_SECRET: ${BYTESTASH_JWT_SECRET}
       TOKEN_EXPIRY: 24h
       ALLOW_NEW_ACCOUNTS: "true"
       DEBUG: "true"
@@ -20,7 +20,7 @@ services:
       OIDC_ENABLED: "false"
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.bytestash-router.rule=Host(`code.example.com`)'
+      - 'traefik.http.routers.bytestash-router.rule=Host(`${BYTESTASH_HOST}`)'
       - 'traefik.http.routers.bytestash-router.entrypoints=web'
       - 'traefik.http.services.bytestash-service.loadbalancer.server.port=5000'
     networks:
@@ -55,10 +55,10 @@ services:
       PAPERLESS_DBHOST: postgres
       PAPERLESS_DBPASS: ${DB_PAPERLESS_PASSWORD}
       PAPERLESS_SECRET_KEY: ${SECRET_KEY}
-      PAPERLESS_URL: https://docs.example.com
-      PAPERLESS_CSRF_TRUSTED_ORIGINS: https://docs.example.com
-      PAPERLESS_ALLOWED_HOSTS: docs.example.com, localhost
-      PAPERLESS_CORS_ALLOWED_ORIGINS: https://docs.example.com
+      PAPERLESS_URL: https://${PAPERLESS_HOST}
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: https://${PAPERLESS_HOST}
+      PAPERLESS_ALLOWED_HOSTS: ${PAPERLESS_HOST}, localhost
+      PAPERLESS_CORS_ALLOWED_ORIGINS: https://${PAPERLESS_HOST}
       PAPERLESS_PROXY_HEADERS: "true"
       PAPERLESS_USE_X_FORWARD_HOST: "true"
       PAPERLESS_USE_X_FORWARD_PORT: "true"
@@ -66,25 +66,25 @@ services:
       # SSO via Authentik (OIDC via allauth); signup social disabilitati,
       # l'account esistente è pre-collegato via SocialAccount (uid = sub Authentik).
       PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
-      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect": {"SCOPE": ["openid", "profile", "email"], "APPS": [{"provider_id": "authentik", "name": "Authentik", "client_id": "${PAPERLESS_OIDC_CLIENT_ID}", "secret": "${PAPERLESS_OIDC_CLIENT_SECRET}", "settings": {"server_url": "https://auth.example.com/application/o/paperless/.well-known/openid-configuration"}}]}}'
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect": {"SCOPE": ["openid", "profile", "email"], "APPS": [{"provider_id": "authentik", "name": "Authentik", "client_id": "${PAPERLESS_OIDC_CLIENT_ID}", "secret": "${PAPERLESS_OIDC_CLIENT_SECRET}", "settings": {"server_url": "https://${AUTHENTIK_HOST}/application/o/paperless/.well-known/openid-configuration"}}]}}'
       PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS: "false"
       # Solo SSO: login regolare disabilitato + redirect automatico ad Authentik.
       # I token API (es. scanner) continuano a funzionare.
       PAPERLESS_DISABLE_REGULAR_LOGIN: "true"
       PAPERLESS_REDIRECT_LOGIN_TO_SSO: "true"
       # SMTP via Stalwart (rete mail_internal, cert LE valido sull'alias)
-      PAPERLESS_EMAIL_HOST: mx.example.com
+      PAPERLESS_EMAIL_HOST: ${SMTP_HOST}
       PAPERLESS_EMAIL_PORT: "465"
       PAPERLESS_EMAIL_USE_SSL: "true"
-      PAPERLESS_EMAIL_HOST_USER: no-reply@example.com
+      PAPERLESS_EMAIL_HOST_USER: ${SMTP_NOREPLY_USER}
       PAPERLESS_EMAIL_HOST_PASSWORD: ${SMTP_NOREPLY_PASSWORD}
-      PAPERLESS_EMAIL_FROM: no-reply@example.com
+      PAPERLESS_EMAIL_FROM: ${SMTP_NOREPLY_USER}
     restart: unless-stopped
     mem_limit: 2g
     cpus: "2.0"
     labels:
       - traefik.enable=true
-      - traefik.http.routers.paperless.rule=Host(`docs.example.com`)
+      - traefik.http.routers.paperless.rule=Host(`${PAPERLESS_HOST}`)
       - traefik.http.routers.paperless.entrypoints=web
       - "traefik.docker.network=proxy_public"
       - traefik.http.services.paperless.loadbalancer.server.port=8000
@@ -158,13 +158,13 @@ services:
       - 'autoheal=true'  # restarted by the autoheal container (network stack) when unhealthy
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy_public'
-      - 'traefik.http.routers.seafile-router.rule=Host(`cloud.example.com`)'
+      - 'traefik.http.routers.seafile-router.rule=Host(`${SEAFILE_HOST}`)'
       - 'traefik.http.routers.seafile-router.entrypoints=web'
       - 'traefik.http.services.seafile-service.loadbalancer.server.port=80'
     networks:
       - proxy_public
       - seafile_internal
-      # SMTP config in seahub_settings.py (EMAIL_HOST=mx.example.com)
+      # SMTP config in seahub_settings.py (EMAIL_HOST=${SMTP_HOST})
       - mail_internal
 
 # Teable # --------------------------------------------------------------------------------------------------------------
@@ -194,7 +194,7 @@ services:
       - POSTGRES_PASSWORD=${DB_TEABLE_PASSWORD}
       - REDIS_PASSWORD=${DB_TEABLE_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
-      - PUBLIC_ORIGIN=https://db.example.com
+      - PUBLIC_ORIGIN=https://${TEABLE_HOST}
 
       # --- Postgres Configuration ---
       - POSTGRES_HOST=postgres
@@ -218,20 +218,20 @@ services:
       - SOCIAL_AUTH_PROVIDERS=oidc
       - BACKEND_OIDC_CLIENT_ID=${TEABLE_OIDC_CLIENT_ID}
       - BACKEND_OIDC_CLIENT_SECRET=${TEABLE_OIDC_CLIENT_SECRET}
-      - BACKEND_OIDC_CALLBACK_URL=https://db.example.com/api/auth/oidc/callback
-      - BACKEND_OIDC_AUTHORIZATION_URL=https://auth.example.com/application/o/authorize/
-      - BACKEND_OIDC_TOKEN_URL=https://auth.example.com/application/o/token/
-      - BACKEND_OIDC_USER_INFO_URL=https://auth.example.com/application/o/userinfo/
-      - BACKEND_OIDC_ISSUER=https://auth.example.com/application/o/teable/
+      - BACKEND_OIDC_CALLBACK_URL=https://${TEABLE_HOST}/api/auth/oidc/callback
+      - BACKEND_OIDC_AUTHORIZATION_URL=https://${AUTHENTIK_HOST}/application/o/authorize/
+      - BACKEND_OIDC_TOKEN_URL=https://${AUTHENTIK_HOST}/application/o/token/
+      - BACKEND_OIDC_USER_INFO_URL=https://${AUTHENTIK_HOST}/application/o/userinfo/
+      - BACKEND_OIDC_ISSUER=https://${AUTHENTIK_HOST}/application/o/teable/
       - BACKEND_OIDC_OTHER={"scope":["openid","profile","email"]}
 
       # --- SMTP via Stalwart (rete mail_internal) ---
-      - BACKEND_MAIL_HOST=mx.example.com
+      - BACKEND_MAIL_HOST=${SMTP_HOST}
       - BACKEND_MAIL_PORT=465
       - BACKEND_MAIL_SECURE=true
-      - BACKEND_MAIL_SENDER=no-reply@example.com
+      - BACKEND_MAIL_SENDER=${SMTP_NOREPLY_USER}
       - BACKEND_MAIL_SENDER_NAME=Teable
-      - BACKEND_MAIL_AUTH_USER=no-reply@example.com
+      - BACKEND_MAIL_AUTH_USER=${SMTP_NOREPLY_USER}
       - BACKEND_MAIL_AUTH_PASS=${SMTP_NOREPLY_PASSWORD}
     restart: unless-stopped
     mem_limit: 3g
@@ -239,9 +239,9 @@ services:
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy_public'
-      - 'traefik.http.routers.teable-router.rule=Host(`db.example.com`)'
+      - 'traefik.http.routers.teable-router.rule=Host(`${TEABLE_HOST}`)'
       - 'traefik.http.routers.teable-router.entrypoints=web'
-      - 'traefik.http.middlewares.teable-headers.headers.customrequestheaders.Host=db.example.com'
+      - 'traefik.http.middlewares.teable-headers.headers.customrequestheaders.Host=${TEABLE_HOST}'
       - 'traefik.http.routers.teable-router.middlewares=teable-headers'
       - 'traefik.http.services.teable-service.loadbalancer.server.port=3000'
     networks:
