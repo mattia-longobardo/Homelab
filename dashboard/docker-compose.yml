@@ -12,7 +12,7 @@ services:
     cpus: "0.5"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portainer-router.rule=Host(`docker.example.com`)"
+      - "traefik.http.routers.portainer-router.rule=Host(`${PORTAINER_HOST}`)"
       - "traefik.http.routers.portainer-router.entrypoints=web"
       - "traefik.http.routers.portainer-router.middlewares=portainer-xfp@docker"
       - "traefik.http.middlewares.portainer-xfp.headers.customrequestheaders.X-Forwarded-Proto=https"
@@ -31,25 +31,25 @@ services:
       # SMTP via Stalwart (rete mail_internal): 587 STARTTLS, il mailer di
       # Grafana non supporta il TLS implicito della 465.
       - GF_SMTP_ENABLED=true
-      - GF_SMTP_HOST=mx.example.com:587
-      - GF_SMTP_USER=no-reply@example.com
+      - GF_SMTP_HOST=${SMTP_HOST}:587
+      - GF_SMTP_USER=${SMTP_NOREPLY_USER}
       - GF_SMTP_PASSWORD=${SMTP_NOREPLY_PASSWORD}
-      - GF_SMTP_FROM_ADDRESS=no-reply@example.com
+      - GF_SMTP_FROM_ADDRESS=${SMTP_NOREPLY_USER}
       - GF_SMTP_FROM_NAME=Grafana
       # SSO via Authentik (OIDC): match per email sull'account esistente
       # (ALLOW_INSECURE_EMAIL_LOOKUP), nessuna creazione automatica di utenti
       # (ALLOW_SIGN_UP=false) e ruoli gestiti in Grafana (SKIP_ORG_ROLE_SYNC).
       # Il lookup per email è sicuro SOLO finché Authentik resta senza
       # self-signup/enrollment e con email gestite dall'admin.
-      - GF_SERVER_ROOT_URL=https://grafana.example.com
+      - GF_SERVER_ROOT_URL=https://${GRAFANA_HOST}
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
       - GF_AUTH_GENERIC_OAUTH_NAME=Authentik
       - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=${GRAFANA_OIDC_CLIENT_ID}
       - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=${GRAFANA_OIDC_CLIENT_SECRET}
       - GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email
-      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://auth.example.com/application/o/authorize/
-      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=https://auth.example.com/application/o/token/
-      - GF_AUTH_GENERIC_OAUTH_API_URL=https://auth.example.com/application/o/userinfo/
+      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://${AUTHENTIK_HOST}/application/o/authorize/
+      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=https://${AUTHENTIK_HOST}/application/o/token/
+      - GF_AUTH_GENERIC_OAUTH_API_URL=https://${AUTHENTIK_HOST}/application/o/userinfo/
       - GF_AUTH_GENERIC_OAUTH_USE_PKCE=true
       - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=false
       - GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC=true
@@ -62,7 +62,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.grafana-router.rule=Host(`grafana.example.com`)"
+      - "traefik.http.routers.grafana-router.rule=Host(`${GRAFANA_HOST}`)"
       - "traefik.http.routers.grafana-router.entrypoints=web"
       - "traefik.http.services.grafana-service.loadbalancer.server.port=3000"
     networks:
