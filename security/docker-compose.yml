@@ -21,8 +21,8 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
       # gRPC (Management + Signal) — h2c backend, most specific paths, highest priority.
-      # websecure+TLS: vpn.example.com is DNS-only (no CF proxy), Traefik owns TLS.
-      - "traefik.http.routers.netbird-grpc-router.rule=Host(`vpn.example.com`) && (PathPrefix(`/signalexchange.SignalExchange/`) || PathPrefix(`/management.ManagementService/`) || PathPrefix(`/management.ProxyService/`))"
+      # websecure+TLS: ${NETBIRD_HOST} is DNS-only (no CF proxy), Traefik owns TLS.
+      - "traefik.http.routers.netbird-grpc-router.rule=Host(`${NETBIRD_HOST}`) && (PathPrefix(`/signalexchange.SignalExchange/`) || PathPrefix(`/management.ManagementService/`) || PathPrefix(`/management.ProxyService/`))"
       - "traefik.http.routers.netbird-grpc-router.entrypoints=websecure"
       - "traefik.http.routers.netbird-grpc-router.tls=true"
       - "traefik.http.routers.netbird-grpc-router.tls.certresolver=letsencrypt"
@@ -32,7 +32,7 @@ services:
       - "traefik.http.services.netbird-grpc-service.loadbalancer.server.port=8080"
       - "traefik.http.services.netbird-grpc-service.loadbalancer.server.scheme=h2c"
       # REST API, Relay (WSS), ws-proxy and embedded Dex (/oauth2).
-      - "traefik.http.routers.netbird-api-router.rule=Host(`vpn.example.com`) && (PathPrefix(`/api`) || PathPrefix(`/relay`) || PathPrefix(`/ws-proxy/`) || PathPrefix(`/oauth2`))"
+      - "traefik.http.routers.netbird-api-router.rule=Host(`${NETBIRD_HOST}`) && (PathPrefix(`/api`) || PathPrefix(`/relay`) || PathPrefix(`/ws-proxy/`) || PathPrefix(`/oauth2`))"
       - "traefik.http.routers.netbird-api-router.entrypoints=websecure"
       - "traefik.http.routers.netbird-api-router.tls=true"
       - "traefik.http.routers.netbird-api-router.tls.certresolver=letsencrypt"
@@ -64,7 +64,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
       # Catch-all for the host — serves the SPA; lower priority than the server routes above.
-      - "traefik.http.routers.netbird-dashboard-router.rule=Host(`vpn.example.com`)"
+      - "traefik.http.routers.netbird-dashboard-router.rule=Host(`${NETBIRD_HOST}`)"
       - "traefik.http.routers.netbird-dashboard-router.entrypoints=websecure"
       - "traefik.http.routers.netbird-dashboard-router.tls=true"
       - "traefik.http.routers.netbird-dashboard-router.tls.certresolver=letsencrypt"
@@ -82,7 +82,7 @@ services:
     network_mode: host
     environment:
       - NB_SETUP_KEY=${NETBIRD_SETUP_KEY}
-      - NB_MANAGEMENT_URL=https://vpn.example.com
+      - NB_MANAGEMENT_URL=https://${NETBIRD_HOST}
       - NB_HOSTNAME=homelab
     volumes:
       - ./netbird-client:/var/lib/netbird
@@ -159,12 +159,12 @@ services:
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${DB_AUTHENTIK_PASSWORD}
-      AUTHENTIK_EMAIL__HOST: mx.example.com
+      AUTHENTIK_EMAIL__HOST: ${SMTP_HOST}
       AUTHENTIK_EMAIL__PORT: "465"
       AUTHENTIK_EMAIL__USE_SSL: "true"
-      AUTHENTIK_EMAIL__USERNAME: no-reply@example.com
+      AUTHENTIK_EMAIL__USERNAME: ${SMTP_NOREPLY_USER}
       AUTHENTIK_EMAIL__PASSWORD: ${SMTP_NOREPLY_PASSWORD}
-      AUTHENTIK_EMAIL__FROM: Authentik <no-reply@example.com>
+      AUTHENTIK_EMAIL__FROM: Authentik <${SMTP_NOREPLY_USER}>
       AUTHENTIK_EMAIL__TIMEOUT: "10"
     volumes:
       - ./authentik/media:/media
@@ -175,7 +175,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.authentik-router.rule=Host(`auth.example.com`)"
+      - "traefik.http.routers.authentik-router.rule=Host(`${AUTHENTIK_HOST}`)"
       - "traefik.http.routers.authentik-router.entrypoints=web"
       - "traefik.http.services.authentik-service.loadbalancer.server.port=9000"
       - "traefik.http.middlewares.authentik-https.headers.customrequestheaders.X-Forwarded-Proto=https"
@@ -199,12 +199,12 @@ services:
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${DB_AUTHENTIK_PASSWORD}
-      AUTHENTIK_EMAIL__HOST: mx.example.com
+      AUTHENTIK_EMAIL__HOST: ${SMTP_HOST}
       AUTHENTIK_EMAIL__PORT: "465"
       AUTHENTIK_EMAIL__USE_SSL: "true"
-      AUTHENTIK_EMAIL__USERNAME: no-reply@example.com
+      AUTHENTIK_EMAIL__USERNAME: ${SMTP_NOREPLY_USER}
       AUTHENTIK_EMAIL__PASSWORD: ${SMTP_NOREPLY_PASSWORD}
-      AUTHENTIK_EMAIL__FROM: Authentik <no-reply@example.com>
+      AUTHENTIK_EMAIL__FROM: Authentik <${SMTP_NOREPLY_USER}>
       AUTHENTIK_EMAIL__TIMEOUT: "10"
     volumes:
       - ./authentik/media:/media
@@ -227,20 +227,20 @@ services:
     container_name: vaultwarden
     user: "1000:1000"
     environment:
-      - DOMAIN=https://vault.example.com
+      - DOMAIN=https://${VAULTWARDEN_HOST}
       - SIGNUPS_ALLOWED=false
       - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
       - TZ=Europe/Rome
       - SMTP_HOST=stalwart
-      - SMTP_FROM=no-reply@example.com
+      - SMTP_FROM=${SMTP_NOREPLY_USER}
       - SMTP_FROM_NAME=Vaultwarden
       - SMTP_PORT=465
       - SMTP_SECURITY=force_tls
-      - SMTP_USERNAME=no-reply@example.com
+      - SMTP_USERNAME=${SMTP_NOREPLY_USER}
       - SMTP_PASSWORD=${VAULTWARDEN_SMTP_PASSWORD}
       - SMTP_ACCEPT_INVALID_HOSTNAMES=true
       - SSO_ENABLED=true
-      - SSO_AUTHORITY=https://auth.example.com/application/o/vaultwarden/
+      - SSO_AUTHORITY=https://${AUTHENTIK_HOST}/application/o/vaultwarden/
       - SSO_CLIENT_ID=${VAULTWARDEN_SSO_CLIENT_ID}
       - SSO_CLIENT_SECRET=${VAULTWARDEN_SSO_CLIENT_SECRET}
       - SSO_SCOPES=email profile
@@ -263,7 +263,7 @@ services:
       - "autoheal=true"
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.vaultwarden-router.rule=Host(`vault.example.com`)"
+      - "traefik.http.routers.vaultwarden-router.rule=Host(`${VAULTWARDEN_HOST}`)"
       - "traefik.http.routers.vaultwarden-router.entrypoints=web"
       - "traefik.http.services.vaultwarden-service.loadbalancer.server.port=80"
       - "traefik.http.middlewares.vaultwarden-https.headers.customrequestheaders.X-Forwarded-Proto=https"

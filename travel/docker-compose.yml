@@ -13,7 +13,7 @@ services:
       - PORT=3000
       - TZ=Europe/Rome
       - ENCRYPTION_KEY=${TREK_ENCRYPTION_KEY}
-      - APP_URL=https://trip.example.com
+      - APP_URL=https://${TREK_HOST}
       - FORCE_HTTPS=true
       - TRUST_PROXY=1
       - LOG_LEVEL=info
@@ -21,17 +21,17 @@ services:
       - ADMIN_PASSWORD=${TREK_ADMIN_PASSWORD}
       # SSO via Authentik (OIDC): aggancio all'account esistente per email/sub.
       # Niente OIDC_ONLY: gli altri utenti continuano col login password.
-      - OIDC_ISSUER=https://auth.example.com/application/o/trek/
+      - OIDC_ISSUER=https://${AUTHENTIK_HOST}/application/o/trek/
       - OIDC_CLIENT_ID=${TREK_OIDC_CLIENT_ID}
       - OIDC_CLIENT_SECRET=${TREK_OIDC_CLIENT_SECRET}
       - OIDC_DISPLAY_NAME=Authentik
       # SMTP via Stalwart (rete mail_internal): le env hanno priorità sulle
       # impostazioni UI; porta 465 = TLS implicito (secure) per l'app.
-      - SMTP_HOST=mx.example.com
+      - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=465
-      - SMTP_USER=no-reply@example.com
+      - SMTP_USER=${SMTP_NOREPLY_USER}
       - SMTP_PASS=${SMTP_NOREPLY_PASSWORD}
-      - SMTP_FROM=no-reply@example.com
+      - SMTP_FROM=${SMTP_NOREPLY_USER}
     volumes:
       - ./trek/data:/app/data
       - ./trek/uploads:/app/uploads
@@ -48,7 +48,7 @@ services:
       - 'autoheal=true'
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy_public'
-      - 'traefik.http.routers.trek-router.rule=Host(`trip.example.com`)'
+      - 'traefik.http.routers.trek-router.rule=Host(`${TREK_HOST}`)'
       - 'traefik.http.routers.trek-router.entrypoints=web'
       - 'traefik.http.services.trek-service.loadbalancer.server.port=3000'
       - 'traefik.http.middlewares.trek-https.headers.customrequestheaders.X-Forwarded-Proto=https'
@@ -65,7 +65,7 @@ services:
     user: "1000:1000"
     environment:
       - TZ=Europe/Rome
-      - ORIGIN=https://fly.example.com
+      - ORIGIN=https://${AIRTRAIL_HOST}
       # DB sul Postgres condiviso (stack db/, rete db_internal)
       - DB_URL=postgres://airtrail:${DB_AIRTRAIL_PASSWORD}@postgres:5432/airtrail
       # Senza UPLOAD_LOCATION gli upload (es. loghi compagnie) sono disabilitati
@@ -73,7 +73,7 @@ services:
       # SSO via Authentik (OIDC): l'account esistente è associato via oauth_id
       # (= sub Authentik) impostato direttamente nel DB.
       - OAUTH_ENABLED=true
-      - OAUTH_ISSUER_URL=https://auth.example.com/application/o/airtrail/
+      - OAUTH_ISSUER_URL=https://${AUTHENTIK_HOST}/application/o/airtrail/
       - OAUTH_CLIENT_ID=${AIRTRAIL_OAUTH_CLIENT_ID}
       - OAUTH_CLIENT_SECRET=${AIRTRAIL_OAUTH_CLIENT_SECRET}
       - OAUTH_SCOPE=openid profile email
@@ -97,7 +97,7 @@ services:
       - 'autoheal=true'
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy_public'
-      - 'traefik.http.routers.airtrail-router.rule=Host(`fly.example.com`)'
+      - 'traefik.http.routers.airtrail-router.rule=Host(`${AIRTRAIL_HOST}`)'
       - 'traefik.http.routers.airtrail-router.entrypoints=web'
       - 'traefik.http.services.airtrail-service.loadbalancer.server.port=3000'
       - 'traefik.http.middlewares.airtrail-https.headers.customrequestheaders.X-Forwarded-Proto=https'
@@ -166,14 +166,14 @@ services:
       OTP_ENCRYPTION_PRIMARY_KEY: ${DAWARICH_OTP_PRIMARY_KEY}
       OTP_ENCRYPTION_DETERMINISTIC_KEY: ${DAWARICH_OTP_DETERMINISTIC_KEY}
       OTP_ENCRYPTION_KEY_DERIVATION_SALT: ${DAWARICH_OTP_SALT}
-      APPLICATION_HOSTS: loc.example.com
+      APPLICATION_HOSTS: ${DAWARICH_HOST}
       APPLICATION_PROTOCOL: https
-      DOMAIN: loc.example.com
+      DOMAIN: ${DAWARICH_HOST}
       # SSO via Authentik (OIDC): match automatico per email (Devise, case-insensitive)
       OIDC_CLIENT_ID: ${DAWARICH_OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${DAWARICH_OIDC_CLIENT_SECRET}
-      OIDC_ISSUER: https://auth.example.com/application/o/dawarich/
-      OIDC_REDIRECT_URI: https://loc.example.com/users/auth/openid_connect/callback
+      OIDC_ISSUER: https://${AUTHENTIK_HOST}/application/o/dawarich/
+      OIDC_REDIRECT_URI: https://${DAWARICH_HOST}/users/auth/openid_connect/callback
       OIDC_PROVIDER_NAME: Authentik
       # Solo SSO: login email+password disabilitato (revert: rimuovere questa riga)
       ALLOW_EMAIL_PASSWORD_LOGIN: "false"
@@ -191,7 +191,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.dawarich-router.rule=Host(`loc.example.com`)"
+      - "traefik.http.routers.dawarich-router.rule=Host(`${DAWARICH_HOST}`)"
       - "traefik.http.routers.dawarich-router.entrypoints=web"
       - "traefik.http.services.dawarich-service.loadbalancer.server.port=3000"
       - "traefik.http.middlewares.dawarich-https.headers.customrequestheaders.X-Forwarded-Proto=https"
