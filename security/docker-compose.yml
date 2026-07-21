@@ -147,10 +147,11 @@ services:
       - authentik_internal
 
   authentik-server:
-    image: ghcr.io/goauthentik/server:latest
+    image: ghcr.io/goauthentik/server:2026.5.5
     container_name: authentik-server
     depends_on:
-      - authentik-redis
+      authentik-redis:
+        condition: service_healthy
     command: server
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
@@ -167,7 +168,9 @@ services:
       AUTHENTIK_EMAIL__FROM: Authentik <${SMTP_NOREPLY_USER}>
       AUTHENTIK_EMAIL__TIMEOUT: "10"
     volumes:
-      - ./authentik/media:/media
+      # /data e' la base del file backend (storage.file.path): deve essere un
+      # mount reale, altrimenti Authentik disabilita l'upload di icone/file.
+      - ./authentik/data:/data
       - ./authentik/templates:/templates
     restart: unless-stopped
     mem_limit: 1g
@@ -187,10 +190,11 @@ services:
       - mail_internal
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:latest
+    image: ghcr.io/goauthentik/server:2026.5.5
     container_name: authentik-worker
     depends_on:
-      - authentik-redis
+      authentik-redis:
+        condition: service_healthy
     command: worker
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
@@ -207,17 +211,19 @@ services:
       AUTHENTIK_EMAIL__FROM: Authentik <${SMTP_NOREPLY_USER}>
       AUTHENTIK_EMAIL__TIMEOUT: "10"
     volumes:
-      - ./authentik/media:/media
+      - ./authentik/data:/data
       - ./authentik/templates:/templates
       - ./authentik/certs:/certs
     restart: unless-stopped
     mem_limit: 1g
     cpus: "1.0"
+    labels:
+      # Redis can be recreated by Watchtower while this process remains up.
+      # Autoheal restarts the worker when Authentik reports a stale heartbeat.
+      - "autoheal=true"
     networks:
       - db_internal
       - authentik_internal
-      # Il worker invia le email (task in background): serve la rete SMTP,
-      # non proxy_public.
       - mail_internal
 
 # Vaultwarden # --------------------------------------------------------------------------------------------------------------
