@@ -11,6 +11,10 @@ services:
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      # NetBird gRPC/WSS: long-lived streams must not be cut by responding timeouts.
+      - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=0"
+      - "--entrypoints.websecure.transport.respondingTimeouts.writeTimeout=0"
+      - "--entrypoints.websecure.transport.respondingTimeouts.idleTimeout=0"
       - "--entrypoints.metrics.address=:8082"
       - "--api.dashboard=true"
       - "--api.insecure=true"
@@ -18,6 +22,13 @@ services:
       - "--metrics.prometheus.entrypoint=metrics"
       - "--metrics.prometheus.addEntryPointsLabels=true"
       - "--metrics.prometheus.addServicesLabels=true"
+      # Let's Encrypt via Cloudflare DNS-01 (works without port 80/443 reachability).
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    environment:
+      - CF_DNS_API_TOKEN=${CLOUDFLARE_API_TOKEN}
     ports:
       - "80:80"
       - "443:443"
@@ -27,6 +38,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/dynamic:/etc/traefik/dynamic
+      - ./traefik/letsencrypt:/letsencrypt
     networks:
       - proxy_public
       - metrics_internal
@@ -134,6 +146,31 @@ services:
       - "traefik.http.services.error-pages-catchall-svc.loadbalancer.server.port=80"
     networks:
       - proxy_public
+
+# Dynamic DNS # --------------------------------------------------------------------------------------------------------------
+
+  cloudflare-ddns:
+    image: favonia/cloudflare-ddns:latest
+    container_name: cloudflare-ddns
+    user: "1000:1000"
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      # Unproxied A records: vpn = direct endpoint for WireGuard clients (UDP
+      # can't traverse the Cloudflare proxy/tunnel); mx = MX target for Stalwart
+      # (SMTP can't traverse the tunnel either).
+      - DOMAINS=${DDNS_DOMAINS}
+      - PROXIED=false
+      - IP6_PROVIDER=none
+      - UPDATE_CRON=@every 5m
+      - TZ=Europe/Rome
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    mem_limit: 64m
+    cpus: "0.1"
 
 networks:
   proxy_public:
