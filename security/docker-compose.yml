@@ -71,6 +71,13 @@ services:
       - "traefik.http.routers.netbird-dashboard-router.priority=10"
       - "traefik.http.routers.netbird-dashboard-router.service=netbird-dashboard-service"
       - "traefik.http.services.netbird-dashboard-service.loadbalancer.server.port=80"
+      # http → https redirect for the host (port 80 reaches Traefik only if the router forwards it).
+      - "traefik.http.routers.netbird-dashboard-http-router.rule=Host(`${NETBIRD_HOST}`)"
+      - "traefik.http.routers.netbird-dashboard-http-router.entrypoints=web"
+      - "traefik.http.routers.netbird-dashboard-http-router.service=netbird-dashboard-service"
+      - "traefik.http.routers.netbird-dashboard-http-router.middlewares=netbird-redirect-https"
+      - "traefik.http.middlewares.netbird-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.netbird-redirect-https.redirectscheme.permanent=true"
     networks:
       - proxy_public
 
@@ -147,10 +154,11 @@ services:
       - authentik_internal
 
   authentik-server:
-    image: ghcr.io/goauthentik/server:latest
+    image: ghcr.io/goauthentik/server:2026.5.5
     container_name: authentik-server
     depends_on:
-      - authentik-redis
+      authentik-redis:
+        condition: service_healthy
     command: server
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
@@ -167,7 +175,9 @@ services:
       AUTHENTIK_EMAIL__FROM: Authentik <${SMTP_NOREPLY_USER}>
       AUTHENTIK_EMAIL__TIMEOUT: "10"
     volumes:
-      - ./authentik/media:/media
+      # /data e' la base del file backend (storage.file.path): deve essere un
+      # mount reale, altrimenti Authentik disabilita l'upload di icone/file.
+      - ./authentik/data:/data
       - ./authentik/templates:/templates
     restart: unless-stopped
     mem_limit: 1g
@@ -187,10 +197,11 @@ services:
       - mail_internal
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:latest
+    image: ghcr.io/goauthentik/server:2026.5.5
     container_name: authentik-worker
     depends_on:
-      - authentik-redis
+      authentik-redis:
+        condition: service_healthy
     command: worker
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
@@ -207,17 +218,19 @@ services:
       AUTHENTIK_EMAIL__FROM: Authentik <${SMTP_NOREPLY_USER}>
       AUTHENTIK_EMAIL__TIMEOUT: "10"
     volumes:
-      - ./authentik/media:/media
+      - ./authentik/data:/data
       - ./authentik/templates:/templates
       - ./authentik/certs:/certs
     restart: unless-stopped
     mem_limit: 1g
     cpus: "1.0"
+    labels:
+      # Redis can be recreated by Watchtower while this process remains up.
+      # Autoheal restarts the worker when Authentik reports a stale heartbeat.
+      - "autoheal=true"
     networks:
       - db_internal
       - authentik_internal
-      # Il worker invia le email (task in background): serve la rete SMTP,
-      # non proxy_public.
       - mail_internal
 
 # Vaultwarden # --------------------------------------------------------------------------------------------------------------
