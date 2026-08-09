@@ -54,8 +54,12 @@ services:
       - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=false
       - GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC=true
       - GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true
+      # Token dell'applicazione "Grafana" su Gotify, interpolato da Grafana
+      # nei file di provisioning alerting ($GOTIFY_APP_TOKEN)
+      - GOTIFY_APP_TOKEN=${GOTIFY_APP_TOKEN}
     volumes:
       - ./grafana:/var/lib/grafana  # Persists dashboards and users
+      - ./grafana-alerting:/etc/grafana/provisioning/alerting:ro
     restart: unless-stopped
     mem_limit: 1g
     cpus: "1.0"
@@ -70,6 +74,43 @@ services:
       - metrics_internal
       - mail_internal
 
+
+# Gotify # --------------------------------------------------------------------------------------------------------------
+
+  gotify:
+    image: gotify/server:latest
+    container_name: gotify
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Rome
+      - GOTIFY_DEFAULTUSER_NAME=${GOTIFY_ADMIN_USERNAME}
+      - GOTIFY_DEFAULTUSER_PASS=${GOTIFY_ADMIN_PASSWORD}
+    volumes:
+      - ./gotify:/app/data
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.25"
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.gotify-router.rule=Host(`${GOTIFY_HOST}`)"
+      - "traefik.http.routers.gotify-router.entrypoints=web"
+      - "traefik.http.services.gotify-service.loadbalancer.server.port=80"
+    networks:
+      - proxy_public
+
+# Blackbox Exporter # --------------------------------------------------------------------------------------------------------------
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox-exporter
+    user: "1000:1000"
+    restart: unless-stopped
+    mem_limit: 64m
+    cpus: "0.1"
+    networks:
+      - metrics_internal
 
 # Monitoring & Metrics Docker # --------------------------------------------------------------------------------------------------------------
 
