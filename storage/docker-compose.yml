@@ -250,44 +250,6 @@ services:
       - teable_internal
       - mail_internal
 
-# Mathesar # --------------------------------------------------------------------------------------------------------------
-
-  mathesar:
-    image: mathesar/mathesar:latest
-    container_name: mathesar
-    environment:
-      DOMAIN_NAME: ${MATHESAR_HOSTNAME}
-      ALLOWED_HOSTS: "*"
-      SECRET_KEY: ${MATHESAR_SECRET_KEY}
-      POSTGRES_DB: mathesar
-      POSTGRES_USER: mathesar
-      POSTGRES_PASSWORD: ${DB_MATHESAR_PASSWORD}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-    volumes:
-      - ./mathesar/static:/code/static
-      - ./mathesar/media:/code/.media
-      - ./mathesar/secrets:/code/.secrets
-    # PostgreSQL interno dell'immagine all-in-one: inutilizzato (DB su postgres esterno).
-    # tmpfs evita la creazione di volumi anonimi persistenti ad ogni ricreazione.
-    tmpfs:
-      - /etc/postgresql
-      - /var/lib/postgresql
-    restart: unless-stopped
-    mem_limit: 1536m
-    cpus: "1.5"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.mathesar-router.rule=Host(`${MATHESAR_HOSTNAME}`)"
-      - "traefik.http.routers.mathesar-router.entrypoints=web"
-      - "traefik.http.routers.mathesar-router.middlewares=mathesar-https@docker"
-      - "traefik.http.middlewares.mathesar-https.headers.customrequestheaders.X-Forwarded-Proto=https"
-      - "traefik.http.services.mathesar-service.loadbalancer.server.port=8000"
-    networks:
-      - proxy_public
-      - db_internal
-
 networks:
   proxy_public:
     external: true
