@@ -113,18 +113,25 @@ services:
     networks:
       - seafile_internal
 
-  memcached:
-    image: memcached:1.6.18
-    container_name: seafile-memcached
-    entrypoint: memcached -m 256
+  seafile-redis:
+    image: redis:latest
+    container_name: seafile-redis
+    volumes:
+      - ./seafile-redis:/data
     restart: unless-stopped
-    mem_limit: 384m
+    mem_limit: 512m
     cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - seafile_internal
           
   seafile:
-    image: seafileltd/seafile-mc:11.0-latest
+    image: seafileltd/seafile-mc:13.0-latest
     container_name: seafile
     volumes:
       - /home/mattia/storage/seafile/seafile-data:/shared   # Required, specifies the path to Seafile data persistent store.
@@ -132,16 +139,29 @@ services:
       - /opt/seafile/pids:mode=1777
     environment:
       - NON_ROOT=true  # Run server as the 'seafile' user (uid 8000) instead of root; /shared must be owned by 8000:8000.
-      - DB_HOST=db
-      - DB_ROOT_PASSWD=${DB_SEAFILE_PASSWORD}  # Required, the value should be root's password of MySQL service.
+      - SEAFILE_MYSQL_DB_HOST=db
+      - SEAFILE_MYSQL_DB_PORT=3306
+      # DB esistenti (upgrade da 11) appartengono a root: si continua con root.
+      - SEAFILE_MYSQL_DB_USER=root
+      - SEAFILE_MYSQL_DB_PASSWORD=${DB_SEAFILE_PASSWORD}
+      - INIT_SEAFILE_MYSQL_ROOT_PASSWORD=${DB_SEAFILE_PASSWORD}
+      - SEAFILE_MYSQL_DB_CCNET_DB_NAME=ccnet_db
+      - SEAFILE_MYSQL_DB_SEAFILE_DB_NAME=seafile_db
+      - SEAFILE_MYSQL_DB_SEAHUB_DB_NAME=seahub_db
+      - JWT_PRIVATE_KEY=${SEAFILE_JWT_PRIVATE_KEY}  # Required from 12.0
       - TIME_ZONE=Europe/Rome  # Optional, default is UTC. Should be uncomment and set to your local time zone.
       - SEAFILE_ADMIN_EMAIL=${SEAFILE_ADMIN_EMAIL} # Specifies Seafile admin user, default is 'me@example.com'.
       - SEAFILE_ADMIN_PASSWORD=${SEAFILE_ADMIN_PASSWORD}     # Specifies Seafile admin password, default is 'asecret'.
-      - SEAFILE_SERVER_LETSENCRYPT=false
       - SEAFILE_SERVER_HOSTNAME=${SEAFILE_SERVER_HOSTNAME}
+      - SEAFILE_SERVER_PROTOCOL=https  # TLS terminato a monte (Cloudflare tunnel)
+      - SEAFILE_LOG_TO_STDOUT=true
+      # Da Seafile 13 la cache di default è Redis (memcached rimosso).
+      - CACHE_PROVIDER=redis
+      - REDIS_HOST=seafile-redis
+      - REDIS_PORT=6379
     depends_on:
       - db
-      - memcached
+      - seafile-redis
     restart: unless-stopped
     mem_limit: 3g
     cpus: "2.0"
