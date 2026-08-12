@@ -80,7 +80,7 @@ services:
       PAPERLESS_EMAIL_HOST_PASSWORD: ${SMTP_NOREPLY_PASSWORD}
       PAPERLESS_EMAIL_FROM: ${SMTP_NOREPLY_USER}
     restart: unless-stopped
-    mem_limit: 2g
+    mem_limit: 4g
     cpus: "2.0"
     labels:
       - traefik.enable=true
