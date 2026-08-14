@@ -22,6 +22,12 @@ services:
       - "--metrics.prometheus.entrypoint=metrics"
       - "--metrics.prometheus.addEntryPointsLabels=true"
       - "--metrics.prometheus.addServicesLabels=true"
+      # Access log for fail2ban. Errors only, so the file stays small; port 443 is the
+      # only WAN-forwarded port, so websecure clients are the real remote IPs.
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+      - "--accesslog.filters.statusCodes=400-599"
       # Let's Encrypt via Cloudflare DNS-01 (works without port 80/443 reachability).
       - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"
@@ -39,6 +45,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/dynamic:/etc/traefik/dynamic
       - ./traefik/letsencrypt:/letsencrypt
+      - ./traefik/logs:/var/log/traefik
     networks:
       - proxy_public
       - metrics_internal
@@ -53,7 +60,9 @@ services:
 # Cloudflare Tunnel # --------------------------------------------------------------------------------------------------------------
 
   cloudflare:
-    image: cloudflare/cloudflared:latest
+    # Pinned: 2026.8.0 strips the trailing slash from proxied request paths,
+    # which breaks authentik/seafile/paperless (404s and login redirect loops).
+    image: cloudflare/cloudflared:2026.8.1
     container_name: cloudflare
     network_mode: host
     volumes:
