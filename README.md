@@ -12,7 +12,7 @@ Il repository contiene le definizioni Compose, non i dati persistenti né i segr
 | `db/` | Dati e metriche condivise | PostgreSQL con pgvector, Prometheus |
 | `dashboard/` | Amministrazione e osservabilità | Portainer, Grafana, cAdvisor, Node Exporter |
 | `security/` | Identità, accesso e sicurezza | Authentik, Vaultwarden, NetBird, Frigate |
-| `storage/` | Documenti, dati e produttività | ByteStash, Paperless-ngx, Seafile, Teable, Mathesar |
+| `storage/` | Documenti, dati e produttività | ByteStash, Paperless-ngx, Seafile, Teable |
 | `streaming/` | Media server e automazione | Plex, Overseerr, Sonarr, Radarr, qBittorrent, Jackett, Plex Syncer |
 | `travel/` | Applicazioni di viaggio | Trek, AirTrail, Dawarich |
 | `ai/` | Area AI e automazione | Stack riservato; i servizi sono attualmente disattivati nel Compose |

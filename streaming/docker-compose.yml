@@ -60,11 +60,9 @@ services:
       - PLEX_LIBRARY=Private
       - PLEX_PRIVATE_ROOT=/private
       - SYNC_INTERVAL=3600
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=plex_info
-      - POSTGRES_USER=plex_info
-      - POSTGRES_PASSWORD=${DB_PLEX_INFO_PASSWORD}
+      - SYNCER_DB=/data/plex-syncer.db
     volumes:
+      - ./plex-syncer/data:/data
       - ../../storage/private/Models:/private/Models
       - ../../storage/private/Cams:/private/Cams
     restart: unless-stopped
@@ -72,7 +70,6 @@ services:
     cpus: "0.5"
     networks:
       - proxy_public
-      - db_internal
 
 # Overseerr # --------------------------------------------------------------------------------------------------------------
   overseerr:
@@ -234,6 +231,4 @@ services:
 
 networks:
   proxy_public:
-    external: true
-  db_internal:
     external: true
