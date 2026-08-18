@@ -38,7 +38,7 @@ services:
       - db_internal
 
 networks:
-  metrics_internal:
-    external: true
   db_internal:
+    name: db_internal
+  metrics_internal:
     external: true
