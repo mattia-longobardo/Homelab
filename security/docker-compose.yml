@@ -154,7 +154,7 @@ services:
       - authentik_internal
 
   authentik-server:
-    image: ghcr.io/goauthentik/server:2026.5.5
+    image: ghcr.io/goauthentik/server:2026.8.0
     container_name: authentik-server
     depends_on:
       authentik-redis:
@@ -197,7 +197,7 @@ services:
       - mail_internal
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:2026.5.5
+    image: ghcr.io/goauthentik/server:2026.8.0
     container_name: authentik-worker
     depends_on:
       authentik-redis:

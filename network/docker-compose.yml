@@ -181,8 +181,60 @@ services:
     mem_limit: 64m
     cpus: "0.1"
 
+# Stalwart Mail # --------------------------------------------------------------------------------------------------------------
+
+  stalwart:
+    image: stalwartlabs/stalwart:latest
+    container_name: stalwart
+    # Deviazione da user 1000:1000: l'immagine gestisce da sé l'utenza interna
+    # (entrypoint + utente `stalwart`); forzare l'UID rompe la scrittura di
+    # registry/config interni (Permission denied).
+    environment:
+      # Credenziale amministrativa di riserva (recovery), usata anche per la
+      # gestione via API; indipendente dall'admin creato nel wizard.
+      - STALWART_RECOVERY_ADMIN=${STALWART_RECOVERY_ADMIN}
+      # Token usato dal macro %{env:CLOUDFLARE_API_TOKEN}% nella config ACME DNS-01.
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      # Password dell'SMTP User su SMTP2GO, referenziata dal route relay outbound
+      # (secret @type EnvironmentVariable nel registry).
+      - SMTP2GO_SMTP_PASSWORD=${SMTP2GO_SMTP_PASSWORD}
+    volumes:
+      # NB: dalle versioni recenti l'immagine usa /var/lib/stalwart come base dir
+      - ./stalwart:/var/lib/stalwart
+      # 0.16+: config.json (puntatore al datastore) vive in /etc/stalwart e va
+      # persistito, altrimenti a ogni ricreazione il server riparte in bootstrap mode.
+      - ./stalwart-etc:/etc/stalwart
+    ports:
+      # L4 exception: SMTP/IMAP non sono proxyabili da Traefik HTTP né dal tunnel
+      # Cloudflare; il router deve fare port-forwarding di queste porte.
+      - "25:25"       # SMTP MX
+      - "465:465"     # SMTP submission TLS
+      - "587:587"     # SMTP submission STARTTLS
+      - "993:993"     # IMAPS
+      - "4190:4190"   # ManageSieve
+    restart: always
+    mem_limit: 1g
+    cpus: "1.0"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.stalwart-router.rule=Host(`mail.longobardo.me`)"
+      - "traefik.http.routers.stalwart-router.entrypoints=web"
+      - "traefik.http.services.stalwart-service.loadbalancer.server.port=8080"
+    networks:
+      proxy_public:
+      # Rete SMTP condivisa: i client interni raggiungono Stalwart come
+      # mx.longobardo.me, così il cert LE wildcard valida senza skip-verify.
+      mail_internal:
+        aliases:
+          - mx.longobardo.me
+          - stalwart
+
+
 networks:
   proxy_public:
-    external: true
+    name: proxy_public
   metrics_internal:
-    external: true
+    name: metrics_internal
+  mail_internal:
+    name: mail_internal

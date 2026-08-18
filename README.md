@@ -25,14 +25,12 @@ Le directory `console/`, `service/` e `media/` contengono configurazioni precede
 - `db_internal`, `metrics_internal` e `mail_internal` collegano gli stack alle infrastrutture condivise.
 - Le reti private delle singole applicazioni isolano frontend, worker, cache e database dedicati.
 - Le porte host sono riservate ai protocolli che richiedono accesso diretto; le interfacce HTTP passano normalmente da Traefik.
+Le reti condivise vengono create automaticamente dagli stack principali all'avvio:
+- `docker/network` crea `proxy_public`, `metrics_internal` e `mail_internal`.
+- `docker/db` crea `db_internal`.
 
-Le reti esterne devono esistere prima dell'avvio:
+Tutti gli altri stack consumatori referenziano queste reti come esterne (`external: true`).
 
-```bash
-for network in proxy_public db_internal metrics_internal mail_internal; do
-  docker network inspect "$network" >/dev/null 2>&1 || docker network create "$network"
-done
-```
 
 ## Prerequisiti
 
