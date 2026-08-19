@@ -1,28 +1,5 @@
 services:
 
-## Minio # --------------------------------------------------------------------------------------------------------------
-#  minio:
-#    image: pgsty/minio:latest
-#    container_name: minio
-#    environment:
-#      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-#      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-#    volumes:
-#      - ./minio:/data
-#    command: server /data --console-address ":9001"
-#    restart: unless-stopped
-#    mem_limit: 1g
-#    cpus: "1.0"
-#    networks:
-#      - proxy_public
-#      - ai_internal
-#    labels:
-#      - "traefik.enable=true"
-#      - "traefik.docker.network=proxy_public"
-#      - "traefik.http.routers.minio-router.rule=Host(`minio.local`)"
-#      - "traefik.http.routers.minio-router.entrypoints=web"
-#      - "traefik.http.services.minio-service.loadbalancer.server.port=9001"
-#
 ## n8n # --------------------------------------------------------------------------------------------------------------
 #
 #  n8n:
