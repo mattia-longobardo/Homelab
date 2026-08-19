@@ -28,30 +28,16 @@ services:
 
 # Paperless # --------------------------------------------------------------------------------------------------------------
 
-  paperless-redis:
-    image: redis:latest
-    container_name: paperless-redis
-    volumes:
-      - ./paperless-redis:/data
-    restart: unless-stopped
-    mem_limit: 512m
-    cpus: "0.5"
-    command: redis-server --requirepass ${DB_PAPERLESS_PASSWORD}
-    networks:
-      - paperless_internal
-
   paperless-ngx:
     image: ghcr.io/paperless-ngx/paperless-ngx:latest
     container_name: paperless-ngx
-    depends_on:
-      - paperless-redis
     volumes:
       - ./paperless-ngx/data:/usr/src/paperless/data
       - ./paperless-ngx/media:/usr/src/paperless/media
       - ./paperless-ngx/export:/usr/src/paperless/export
       - ./paperless-ngx/consume:/usr/src/paperless/consume
     environment:
-      PAPERLESS_REDIS: redis://:${DB_PAPERLESS_PASSWORD}@paperless-redis:6379
+      PAPERLESS_REDIS: redis://:${REDIS_PASSWORD}@redis:6379/1
       PAPERLESS_DBHOST: postgres
       PAPERLESS_DBPASS: ${DB_PAPERLESS_PASSWORD}
       PAPERLESS_SECRET_KEY: ${SECRET_KEY}
@@ -93,7 +79,6 @@ services:
     networks:
       - proxy_public
       - db_internal
-      - paperless_internal
       - mail_internal
 
 # Seafile # --------------------------------------------------------------------------------------------------------------
@@ -110,23 +95,6 @@ services:
     restart: unless-stopped
     mem_limit: 2g
     cpus: "2.0"
-    networks:
-      - seafile_internal
-
-  seafile-redis:
-    image: redis:latest
-    container_name: seafile-redis
-    volumes:
-      - ./seafile-redis:/data
-    restart: unless-stopped
-    mem_limit: 512m
-    cpus: "0.5"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
     networks:
       - seafile_internal
           
@@ -157,11 +125,11 @@ services:
       - SEAFILE_LOG_TO_STDOUT=true
       # Da Seafile 13 la cache di default è Redis (memcached rimosso).
       - CACHE_PROVIDER=redis
-      - REDIS_HOST=seafile-redis
+      - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     depends_on:
       - db
-      - seafile-redis
     restart: unless-stopped
     mem_limit: 3g
     cpus: "2.0"
@@ -184,35 +152,22 @@ services:
     networks:
       - proxy_public
       - seafile_internal
+      - db_internal
       # SMTP config in seahub_settings.py (EMAIL_HOST=${SMTP_HOST})
       - mail_internal
 
 # Teable # --------------------------------------------------------------------------------------------------------------
 
-  teable-redis:
-    image: redis:latest
-    container_name: teable-redis
-    volumes:
-      - ./teable-redis:/data
-    restart: unless-stopped
-    mem_limit: 512m
-    cpus: "0.5"
-    command: redis-server --requirepass ${DB_TEABLE_PASSWORD}
-    networks:
-      - teable_internal
-
   teable:
     image: ghcr.io/teableio/teable:latest
     container_name: teable
-    depends_on:
-      - teable-redis
     volumes:
       - ./teable:/app/.assets:rw
     environment:
       # --- Basic Configuration ---
       - NEXT_ENV_IMAGES_ALL_REMOTE=true
       - POSTGRES_PASSWORD=${DB_TEABLE_PASSWORD}
-      - REDIS_PASSWORD=${DB_TEABLE_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
       - PUBLIC_ORIGIN=https://${TEABLE_HOST}
 
@@ -223,16 +178,17 @@ services:
       - POSTGRES_USER=teable
       
       # --- Redis Configuration ---
-      - REDIS_HOST=teable-redis
+      - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - REDIS_DB=0
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=3
 
       # --- App / Connection Strings (MUST BE MANUALLY EXPANDED) ---
       
       # Format: postgresql://USER:PASSWORD@HOST:PORT/DB
       - PRISMA_DATABASE_URL=postgresql://teable:${DB_TEABLE_PASSWORD}@postgres:5432/teable
       - BACKEND_CACHE_PROVIDER=redis
-      - BACKEND_CACHE_REDIS_URI=redis://default:${DB_TEABLE_PASSWORD}@teable-redis:6379/0
+      - BACKEND_CACHE_REDIS_URI=redis://default:${REDIS_PASSWORD}@redis:6379/3
 
       # --- SSO via Authentik (OIDC): match automatico per email ---
       - SOCIAL_AUTH_PROVIDERS=oidc
@@ -267,7 +223,6 @@ services:
     networks:
       - proxy_public
       - db_internal
-      - teable_internal
       - mail_internal
 
 networks:
@@ -277,12 +232,6 @@ networks:
     external: true
   mail_internal:
     external: true
-  paperless_internal:
-    name: paperless_internal
-    internal: true
   seafile_internal:
     name: seafile_internal
-    internal: true
-  teable_internal:
-    name: teable_internal
     internal: true
