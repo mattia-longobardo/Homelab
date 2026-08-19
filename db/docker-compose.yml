@@ -87,11 +87,8 @@ services:
       - "traefik.http.routers.silo-router.entrypoints=web"
       - "traefik.http.services.silo-service.loadbalancer.server.port=9001"
     networks:
-      db_internal:
-        aliases:
-          - silo
-          - minio
-      proxy_public:
+      - db_internal
+      - proxy_public
 
 networks:
   db_internal:
