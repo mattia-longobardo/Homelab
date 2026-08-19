@@ -26,6 +26,7 @@ services:
     restart: unless-stopped
     mem_limit: 6g
     cpus: "4.0"
+    shm_size: 1g
     user: 1000:1000
     environment:
       POSTGRES_USER: ${DB_USERNAME}
@@ -37,8 +38,65 @@ services:
     networks:
       - db_internal
 
+# ArangoDB # --------------------------------------------------------------------------------------------------------------
+  arangodb:
+    image: arangodb:3.12
+    container_name: arangodb
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: "3.0"
+    environment:
+      ARANGO_ROOT_PASSWORD: ${ARANGO_ROOT_PASSWORD}
+    volumes:
+      - ./arangodb/data:/var/lib/arangodb3
+      - ./arangodb/apps:/var/lib/arangodb3-apps
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.arangodb-router.rule=Host(`arango.longobardo.me`) || Host(`arango.local`)"
+      - "traefik.http.routers.arangodb-router.entrypoints=web"
+      - "traefik.http.services.arangodb-service.loadbalancer.server.port=8529"
+    networks:
+      - db_internal
+      - proxy_public
+
+# Silo # --------------------------------------------------------------------------------------------------------------
+  silo:
+    image: pgsty/silo:latest
+    container_name: silo
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${SILO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${SILO_ROOT_PASSWORD}
+      TZ: Europe/Rome
+    volumes:
+      - /home/mattia/storage/silo:/data
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: "1.5"
+    healthcheck:
+      test: ["CMD", "silo", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.silo-router.rule=Host(`${SILO_HOST}`) || Host(`silo.local`)"
+      - "traefik.http.routers.silo-router.entrypoints=web"
+      - "traefik.http.services.silo-service.loadbalancer.server.port=9001"
+    networks:
+      db_internal:
+        aliases:
+          - silo
+          - minio
+      proxy_public:
+
 networks:
   db_internal:
     name: db_internal
   metrics_internal:
+    external: true
+  proxy_public:
     external: true

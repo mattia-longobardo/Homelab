@@ -1,34 +1,5 @@
 services:
 
-## Silo # ---------------------------------------------------------------------------------------------------------------
-#  silo:
-#    image: pgsty/silo:latest
-#    container_name: silo
-#    environment:
-#      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-#      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-#    volumes:
-#      - ./silo:/data
-#    command: server /data --console-address ":9001"
-#    restart: unless-stopped
-#    mem_limit: 1g
-#    cpus: "1.0"
-#    healthcheck:
-#      test: ["CMD", "silo", "healthcheck"]
-#      interval: 15s
-#      timeout: 5s
-#      retries: 5
-#      start_period: 30s
-#    networks:
-#      - proxy_public
-#      - ai_internal
-#    labels:
-#      - "traefik.enable=true"
-#      - "traefik.docker.network=proxy_public"
-#      - "traefik.http.routers.silo-router.rule=Host(`silo.local`)"
-#      - "traefik.http.routers.silo-router.entrypoints=web"
-#      - "traefik.http.services.silo-service.loadbalancer.server.port=9001"
-#
 ## n8n # --------------------------------------------------------------------------------------------------------------
 #
 #  n8n:
