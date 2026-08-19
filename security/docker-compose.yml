@@ -135,34 +135,15 @@ services:
 
 # Authentik # --------------------------------------------------------------------------------------------------------------
 
-  authentik-redis:
-    image: redis:latest
-    container_name: authentik-redis
-    command: redis-server --save 60 1
-    volumes:
-      - ./authentik-redis:/data
-    restart: unless-stopped
-    mem_limit: 512m
-    cpus: "0.5"
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - authentik_internal
-
   authentik-server:
     image: ghcr.io/goauthentik/server:2026.8.0
     container_name: authentik-server
-    depends_on:
-      authentik-redis:
-        condition: service_healthy
     command: server
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
-      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_REDIS__PASSWORD: ${REDIS_PASSWORD}
+      AUTHENTIK_REDIS__DB: 0
       AUTHENTIK_POSTGRESQL__HOST: postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
@@ -193,19 +174,17 @@ services:
     networks:
       - proxy_public
       - db_internal
-      - authentik_internal
       - mail_internal
 
   authentik-worker:
     image: ghcr.io/goauthentik/server:2026.8.0
     container_name: authentik-worker
-    depends_on:
-      authentik-redis:
-        condition: service_healthy
     command: worker
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
-      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_REDIS__PASSWORD: ${REDIS_PASSWORD}
+      AUTHENTIK_REDIS__DB: 0
       AUTHENTIK_POSTGRESQL__HOST: postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
@@ -230,7 +209,6 @@ services:
       - "autoheal=true"
     networks:
       - db_internal
-      - authentik_internal
       - mail_internal
 
 # Vaultwarden # --------------------------------------------------------------------------------------------------------------
@@ -291,6 +269,3 @@ networks:
     external: true
   mail_internal:
     external: true
-  authentik_internal:
-    name: authentik_internal
-    internal: true

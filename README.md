@@ -9,7 +9,7 @@ Il repository contiene le definizioni Compose, non i dati persistenti né i segr
 | Directory | Ruolo | Servizi principali |
 | --- | --- | --- |
 | `network/` | Edge e servizi di rete | Traefik, Cloudflare Tunnel/DDNS, Pi-hole, Stalwart, Watchtower, Autoheal |
-| `db/` | Dati e metriche condivise | PostgreSQL con pgvector, Prometheus |
+| `db/` | Dati, cache e metriche condivise | PostgreSQL con pgvector, Redis, ArangoDB, Silo, Prometheus |
 | `dashboard/` | Amministrazione e osservabilità | Portainer, Grafana, cAdvisor, Node Exporter |
 | `security/` | Identità, accesso e sicurezza | Authentik, Vaultwarden, NetBird, Frigate |
 | `storage/` | Documenti, dati e produttività | ByteStash, Paperless-ngx, Seafile, Teable |

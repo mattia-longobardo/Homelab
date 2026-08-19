@@ -90,6 +90,25 @@ services:
       - db_internal
       - proxy_public
 
+# Redis # --------------------------------------------------------------------------------------------------------------
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --requirepass ${REDIS_PASSWORD}
+    mem_limit: 1g
+    cpus: "1.0"
+    volumes:
+      - ./redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - db_internal
+
 networks:
   db_internal:
     name: db_internal

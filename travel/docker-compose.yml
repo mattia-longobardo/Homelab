@@ -118,6 +118,3 @@ networks:
     external: true
   db_internal:
     external: true
-  travel_app_internal:
-    name: travel_app_internal
-    internal: true
