@@ -100,4 +100,5 @@ Quando si aggiunge o modifica un servizio:
 2. usare bind mount per la persistenza e reti private per i sidecar;
 3. esporre le UI HTTP tramite Traefik su `proxy_public`, evitando porte host non necessarie;
 4. dichiarare `mem_limit`, `cpus`, policy di restart e un healthcheck quando applicabile;
-5. mantenere i segreti fuori dal Compose e verificare il risultato con `docker compose config --quiet`.
+5. mantenere i segreti fuori dal Compose e verificare il risultato con `docker compose config --quiet`;
+6. registrare ogni servizio esposto a Internet (dominio pubblico non `.local`, esclusi gli ambienti `work/`) nei target `blackbox-http` in `db/prometheus.yml` per la dashboard Availability di Grafana e l'alerting.

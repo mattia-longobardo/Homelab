@@ -83,6 +83,10 @@ The central `autoheal` container in `network/` automatically monitors container 
 - **Default to `latest`**: The homelab runs `watchtower` in `network/` (`WATCHTOWER_CLEANUP=true`, poll interval 6h) to keep the fleet updated automatically.
 - **Pinning Policy**: Pin image tags (e.g. `mariadb:10.11`, `arangodb:3.12`, `cloudflared:2026.8.1`, `server:2026.8.0`) **only** when upstream breaking changes, major DB migrations, or known regression bugs require version locking. Document the reason in a comment.
 
+### D. Public Availability Monitoring (Blackbox & Grafana)
+- **Mandatory Registration for Public Services**: Every service exposed to the public internet (any public domain/subdomain, excluding local-only `.local` domains and work stacks under `work/`) **MUST** be added to the Prometheus scrape configuration at `db/prometheus.yml` under the `blackbox-http` job targets (`https://<service-domain>`).
+- **Dashboard & Alerting**: The blackbox exporter regularly probes all listed endpoints (`http_2xx`). Probe status feeds directly into the Grafana **Availability / Blackbox** dashboard (`dashboard/grafana-dashboards/availability.json`) and triggers the `ProbeFailed` alert rule in `dashboard/grafana-alerting/rules.yml` if any public endpoint goes down.
+
 ---
 
 ## 6. Shared Data, Cache & Infrastructure Tier (`db/`)
@@ -261,3 +265,4 @@ Before finalizing any Compose change or new service, verify:
 - [ ] **Traefik labels**: Router/service names standard; `entrypoints=web`; `traefik.docker.network=proxy_public` present.
 - [ ] **Limits**: Both `mem_limit` and quoted `cpus:` defined.
 - [ ] **Secrets**: Passed via `.env` (`${VAR}`); new variables documented.
+- [ ] **Availability Monitoring**: If exposed to the public internet (public domain, non-`.local`), target added to `db/prometheus.yml` under `blackbox-http` for the Grafana availability dashboard and alerting.
