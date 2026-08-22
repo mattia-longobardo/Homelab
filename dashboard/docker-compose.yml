@@ -54,13 +54,24 @@ services:
       - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=false
       - GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC=true
       - GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true
-      # Token dell'applicazione "Grafana" su Gotify, interpolato da Grafana
-      # nei file di provisioning alerting ($GOTIFY_APP_TOKEN)
+      # Token dell'applicazione "Grafana" su Gotify. Serviva a interpolare
+      # $GOTIFY_APP_TOKEN nei file di provisioning alerting: dal 2026-08-22 non
+      # c'e' piu' provisioning e il token e' gia' risolto dentro il contact
+      # point nel DB. Tenuto solo per poter riabilitare il provisioning.
       - GOTIFY_APP_TOKEN=${GOTIFY_APP_TOKEN}
     volumes:
-      - ./grafana:/var/lib/grafana  # Persists dashboards and users
-      - ./grafana-alerting:/etc/grafana/provisioning/alerting:ro
-      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Unica fonte di verita': il DB. Alerting e dashboard NON sono piu'
+      # provisioned da file (2026-08-22): con provenance=file Grafana li marca
+      # immutabili e la UI non li lascia modificare, nemmeno da admin. I marker
+      # sono stati rimossi dal DB (provenance_type + annotation
+      # grafana.app/managedBy) e i due mount di provisioning tolti qui sotto.
+      # Tutto cio' che riguarda Grafana sta sotto ./grafana: i vecchi file di
+      # provisioning (ora inerti) in ./grafana/grafana-alerting e
+      # ./grafana/grafana-dashboards, lo snapshot del DB pre-conversione in
+      # ./grafana/grafana.db.bak-2026-08-22.
+      # ATTENZIONE: regole di alerting e dashboard vivono solo in ./grafana
+      # (gitignored) -> senza backup di quella cartella si perdono.
+      - ./grafana:/var/lib/grafana  # Persists dashboards, alerting, users
     restart: unless-stopped
     mem_limit: 1g
     cpus: "1.0"
