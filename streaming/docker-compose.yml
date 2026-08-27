@@ -72,69 +72,91 @@ services:
       - proxy_public
 
 # Overseerr # --------------------------------------------------------------------------------------------------------------
-  overseerr:
-    image:  ghcr.io/seerr-team/seerr:latest
-    container_name: overseerr
-    user: "1000:1000"
-    environment:
-      - LOG_LEVEL=debug
-      - TZ=Europe/Rome
-    volumes:
-      - ./overseerr:/app/config
-    restart: unless-stopped
-    mem_limit: 1g
-    cpus: "0.75"
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.overseerr-router.rule=Host(`catalogo.local`)'
-      - 'traefik.http.routers.overseerr-router.entrypoints=web'
-      - 'traefik.http.services.overseerr-service.loadbalancer.server.port=5055'
-    networks:
-      - proxy_public
+#  overseerr:
+#    image:  ghcr.io/seerr-team/seerr:latest
+#    container_name: overseerr
+#    user: "1000:1000"
+#    environment:
+#      - LOG_LEVEL=debug
+#      - TZ=Europe/Rome
+#    volumes:
+#      - ./overseerr:/app/config
+#    restart: unless-stopped
+#    mem_limit: 1g
+#    cpus: "0.75"
+#    labels:
+#      - 'traefik.enable=true'
+#      - 'traefik.http.routers.overseerr-router.rule=Host(`catalogo.local`)'
+#      - 'traefik.http.routers.overseerr-router.entrypoints=web'
+#      - 'traefik.http.services.overseerr-service.loadbalancer.server.port=5055'
+#    networks:
+#      - proxy_public
 
 # Sonarr # --------------------------------------------------------------------------------------------------------------
-  sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
-    container_name: sonarr
-    user: "1000:1000"
-    environment:
-      - TZ=Europe/Rome
-    volumes:
-      - ./sonarr:/config
-      - ../../storage/tv:/tv
-      - ../../storage/downloads:/downloads
-    restart: unless-stopped
-    mem_limit: 1g
-    cpus: "1.0"
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.sonarr-router.rule=Host(`sonarr.local`)'
-      - 'traefik.http.routers.sonarr-router.entrypoints=web'
-      - 'traefik.http.services.sonarr-service.loadbalancer.server.port=8989'
-    networks:
-      - proxy_public
+#  sonarr:
+#    image: lscr.io/linuxserver/sonarr:latest
+#    container_name: sonarr
+#    user: "1000:1000"
+#    environment:
+#      - TZ=Europe/Rome
+#    volumes:
+#      - ./sonarr:/config
+#      - ../../storage/tv:/tv
+#      - ../../storage/downloads:/downloads
+#    restart: unless-stopped
+#    mem_limit: 1g
+#    cpus: "1.0"
+#    labels:
+#      - 'traefik.enable=true'
+#      - 'traefik.http.routers.sonarr-router.rule=Host(`sonarr.local`)'
+#      - 'traefik.http.routers.sonarr-router.entrypoints=web'
+#      - 'traefik.http.services.sonarr-service.loadbalancer.server.port=8989'
+#    networks:
+#      - proxy_public
 
 # Radarr # --------------------------------------------------------------------------------------------------------------
-  radarr:
-    image: lscr.io/linuxserver/radarr:latest
-    container_name: radarr
-    user: "1000:1000"
-    environment:
-      - TZ=Europe/Rome
-    volumes:
-      - ./radarr:/config
-      - ../../storage/movies:/movies
-      - ../../storage/downloads:/downloads
-    restart: unless-stopped
-    mem_limit: 1g
-    cpus: "1.0"
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.radarr-router.rule=Host(`radarr.local`)'
-      - 'traefik.http.routers.radarr-router.entrypoints=web'
-      - 'traefik.http.services.radarr-service.loadbalancer.server.port=7878'
-    networks:
-      - proxy_public
+#  radarr:
+#    image: lscr.io/linuxserver/radarr:latest
+#    container_name: radarr
+#    user: "1000:1000"
+#    environment:
+#      - TZ=Europe/Rome
+#    volumes:
+#      - ./radarr:/config
+#      - ../../storage/movies:/movies
+#      - ../../storage/downloads:/downloads
+#    restart: unless-stopped
+#    mem_limit: 1g
+#    cpus: "1.0"
+#    labels:
+#      - 'traefik.enable=true'
+#      - 'traefik.http.routers.radarr-router.rule=Host(`radarr.local`)'
+#      - 'traefik.http.routers.radarr-router.entrypoints=web'
+#      - 'traefik.http.services.radarr-service.loadbalancer.server.port=7878'
+#    networks:
+#      - proxy_public
+
+# Jackett # --------------------------------------------------------------------------------------------------------------
+#  jackett:
+#    image: lscr.io/linuxserver/jackett:latest
+#    container_name: jackett
+#    user: "1000:1000"
+#    environment:
+#      - TZ=Europe/Rome
+#      - AUTO_UPDATE=true
+#    volumes:
+#      - ./jackett:/config
+#      - ../../storage/downloads:/downloads
+#    restart: unless-stopped
+#    mem_limit: 1g
+#    cpus: "1.0"
+#    labels:
+#      - 'traefik.enable=true'
+#      - 'traefik.http.routers.jackett-router.rule=Host(`jackett.local`)'
+#      - 'traefik.http.routers.jackett-router.entrypoints=web'
+#      - 'traefik.http.services.jackett-service.loadbalancer.server.port=9117'
+#    networks:
+#      - proxy_public
 
 # qBittorrent # --------------------------------------------------------------------------------------------------------------
   qbittorrent:
@@ -159,28 +181,6 @@ services:
       - 'traefik.http.routers.qbittorrent-router.rule=Host(`torrent.local`)'
       - 'traefik.http.routers.qbittorrent-router.entrypoints=web'
       - 'traefik.http.services.qbittorrent-service.loadbalancer.server.port=8080'
-    networks:
-      - proxy_public
-
-# Jackett # --------------------------------------------------------------------------------------------------------------
-  jackett:
-    image: lscr.io/linuxserver/jackett:latest
-    container_name: jackett
-    user: "1000:1000"
-    environment:
-      - TZ=Europe/Rome
-      - AUTO_UPDATE=true
-    volumes:
-      - ./jackett:/config
-      - ../../storage/downloads:/downloads
-    restart: unless-stopped
-    mem_limit: 1g
-    cpus: "1.0"
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.jackett-router.rule=Host(`jackett.local`)'
-      - 'traefik.http.routers.jackett-router.entrypoints=web'
-      - 'traefik.http.services.jackett-service.loadbalancer.server.port=9117'
     networks:
       - proxy_public
 
