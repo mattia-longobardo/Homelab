@@ -8,7 +8,7 @@ services:
 # Trek # --------------------------------------------------------------------------------------------------------------
 
   trek:
-    image: mauriceboe/trek:latest
+    image: mauriceboe/trek:latest-pre
     container_name: trek
     # No `user:` override: the image's entrypoint starts as root and drops to its
     # bundled `node` user (UID 1000) itself; forcing user: breaks that su and the

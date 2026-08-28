@@ -162,7 +162,7 @@ services:
     image: ghcr.io/teableio/teable:latest
     container_name: teable
     volumes:
-      - ./teable:/app/.assets:rw
+      - ./teable/assets:/app/.assets:rw
     environment:
       # --- Basic Configuration ---
       - NEXT_ENV_IMAGES_ALL_REMOTE=true
@@ -225,6 +225,107 @@ services:
       - db_internal
       - mail_internal
 
+# Immich # --------------------------------------------------------------------------------------------------------------
+
+  immich:
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: immich
+    user: "1000:1000"
+    depends_on:
+      - immich-postgres
+    environment:
+      - TZ=Europe/Rome
+      - IMMICH_PORT=2283
+      # DB dedicato: Immich richiede l'estensione VectorChord, assente da pgvector/pgvector:pg18 del db stack.
+      - DB_HOSTNAME=immich-postgres
+      - DB_PORT=5432
+      - DB_USERNAME=immich
+      - DB_PASSWORD=${DB_IMMICH_PASSWORD}
+      - DB_DATABASE_NAME=immich
+      - DB_VECTOR_EXTENSION=vectorchord
+      # Redis centralizzato (db stack), indice logico 5
+      - REDIS_HOSTNAME=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DBINDEX=5
+      - IMMICH_MACHINE_LEARNING_URL=http://immich-ml:3003
+      # SSO Authentik (OIDC): issuer/client vengono salvati nel DB di Immich
+      # (Administration > Settings > OAuth); qui restano documentati per il rebuild.
+      # OIDC_ISSUER=https://${AUTHENTIK_HOST}/application/o/immich/
+    volumes:
+      - /home/mattia/storage/photos:/data
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: "2.0"
+    healthcheck:
+      test: ["CMD", "immich-healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - 'autoheal=true'
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy_public'
+      - 'traefik.http.routers.immich-router.rule=Host(`${IMMICH_HOST}`)'
+      - 'traefik.http.routers.immich-router.entrypoints=web'
+      - 'traefik.http.services.immich-service.loadbalancer.server.port=2283'
+      - 'traefik.http.middlewares.immich-https.headers.customrequestheaders.X-Forwarded-Proto=https'
+      - 'traefik.http.routers.immich-router.middlewares=immich-https'
+    networks:
+      - proxy_public
+      - db_internal
+      - immich_internal
+
+  immich-ml:
+    image: ghcr.io/immich-app/immich-machine-learning:release
+    container_name: immich-ml
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Rome
+      - MACHINE_LEARNING_WORKERS=1
+    volumes:
+      - ./immich/ml-cache:/cache
+    restart: unless-stopped
+    mem_limit: 4g
+    cpus: "2.0"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      - 'autoheal=true'
+    networks:
+      - immich_internal
+
+  immich-postgres:
+    # Pinnato: immagine ufficiale Immich (Postgres 14 + VectorChord), l'unica supportata per il vector search.
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+    container_name: immich-postgres
+    user: "1000:1000"
+    environment:
+      - POSTGRES_USER=immich
+      - POSTGRES_PASSWORD=${DB_IMMICH_PASSWORD}
+      - POSTGRES_DB=immich
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    volumes:
+      - ./immich/postgres:/var/lib/postgresql/data
+    shm_size: 256m
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: "2.0"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U immich -d immich"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - immich_internal
+
 networks:
   proxy_public:
     external: true
@@ -235,3 +336,6 @@ networks:
   seafile_internal:
     name: seafile_internal
     internal: true
+  # Non internal: immich-ml deve scaricare i modelli CLIP da HuggingFace.
+  immich_internal:
+    name: immich_internal

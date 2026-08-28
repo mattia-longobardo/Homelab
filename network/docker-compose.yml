@@ -200,10 +200,10 @@ services:
       - SMTP2GO_SMTP_PASSWORD=${SMTP2GO_SMTP_PASSWORD}
     volumes:
       # NB: dalle versioni recenti l'immagine usa /var/lib/stalwart come base dir
-      - ./stalwart:/var/lib/stalwart
+      - ./stalwart/data:/var/lib/stalwart
       # 0.16+: config.json (puntatore al datastore) vive in /etc/stalwart e va
       # persistito, altrimenti a ogni ricreazione il server riparte in bootstrap mode.
-      - ./stalwart-etc:/etc/stalwart
+      - ./stalwart/etc:/etc/stalwart
     ports:
       # L4 exception: SMTP/IMAP non sono proxyabili da Traefik HTTP né dal tunnel
       # Cloudflare; il router deve fare port-forwarding di queste porte.

@@ -92,7 +92,7 @@ services:
       - NB_MANAGEMENT_URL=https://${NETBIRD_HOST}
       - NB_HOSTNAME=homelab
     volumes:
-      - ./netbird-client:/var/lib/netbird
+      - ./netbird/client:/var/lib/netbird
     cap_add:
       # VPN agent: creates the WireGuard interface and manages host routes/iptables.
       - NET_ADMIN
