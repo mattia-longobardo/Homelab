@@ -1,0 +1,56 @@
+services:
+
+# Travel App (Unified Backend + Frontend) # -----------------------------------------------------------------------------------
+
+  travel-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: travel-agent:latest
+    container_name: travel-agent
+    user: "1000:1000"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      DB_TRAVEL_PASSWORD: ${DB_TRAVEL_PASSWORD}
+      # DB e Redis migrati sui servizi condivisi dello stack db/ (rete db_internal).
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: 4
+      SESSION_SECRET: ${SESSION_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      LASTMINUTE_MCP_URL: ${LASTMINUTE_MCP_URL}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      BACKEND_URL: http://127.0.0.1:8000
+      TZ: ${TZ}
+    restart: unless-stopped
+    mem_limit: 1.5g
+    cpus: "1.5"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.travel-app-router.rule=Host(`${TRAVEL_HOST}`)"
+      - "traefik.http.routers.travel-app-router.entrypoints=web"
+      - "traefik.http.services.travel-app-service.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.travel-app-https.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.travel-app-router.middlewares=travel-app-https"
+    networks:
+      - proxy_public
+      - db_internal
+
+networks:
+  proxy_public:
+    external: true
+  db_internal:
+    external: true
