@@ -58,6 +58,15 @@ services:
       - 'traefik.http.services.trek-service.loadbalancer.server.port=3000'
       - 'traefik.http.middlewares.trek-https.headers.customrequestheaders.X-Forwarded-Proto=https'
       - 'traefik.http.routers.trek-router.middlewares=trek-https'
+      # Accesso diretto in LAN via split DNS su Pi-hole: TLS servito da Traefik,
+      # senza passare da Cloudflare (che limita le richieste a 100 MiB).
+      # lan-only@file tiene questo router fuori dalla portata di Internet.
+      - 'traefik.http.routers.trek-secure-router.rule=Host(`${TREK_HOST}`)'
+      - 'traefik.http.routers.trek-secure-router.entrypoints=websecure'
+      - 'traefik.http.routers.trek-secure-router.tls=true'
+      - 'traefik.http.routers.trek-secure-router.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.trek-secure-router.service=trek-service'
+      - 'traefik.http.routers.trek-secure-router.middlewares=trek-https,lan-only@file'
     networks:
       - proxy_public
       - mail_internal

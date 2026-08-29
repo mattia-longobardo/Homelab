@@ -273,6 +273,16 @@ services:
       - 'traefik.http.services.immich-service.loadbalancer.server.port=2283'
       - 'traefik.http.middlewares.immich-https.headers.customrequestheaders.X-Forwarded-Proto=https'
       - 'traefik.http.routers.immich-router.middlewares=immich-https'
+      # Accesso diretto in LAN via split DNS su Pi-hole: TLS servito da Traefik,
+      # senza passare da Cloudflare (che limita le richieste a 100 MiB, tetto che
+      # bloccherebbe il backup dei video dal telefono).
+      # lan-only@file tiene questo router fuori dalla portata di Internet.
+      - 'traefik.http.routers.immich-secure-router.rule=Host(`${IMMICH_HOST}`)'
+      - 'traefik.http.routers.immich-secure-router.entrypoints=websecure'
+      - 'traefik.http.routers.immich-secure-router.tls=true'
+      - 'traefik.http.routers.immich-secure-router.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.immich-secure-router.service=immich-service'
+      - 'traefik.http.routers.immich-secure-router.middlewares=immich-https,lan-only@file'
     networks:
       - proxy_public
       - db_internal
