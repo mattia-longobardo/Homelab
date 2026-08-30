@@ -6,6 +6,15 @@
 !/README.md
 # AGENTS.md / GEMINI.md / CLAUDE.md are agent rule files, not stack configuration:
 # they stay local, mirroring ~/.claude/rules/docker-stack-conventions.md.
+
+# prometheus.yml is the counterpart of dashboard/docker-compose.yml: node-exporter
+# runs with network_mode: host, so its scrape target must match. Tracking only the
+# compose file would leave a fresh clone with a broken 'node' job.
+!prometheus.yml
+# Source of the "Homelab - homeserver" Grafana dashboard. NOT provisioning: the
+# dashboard lives in grafana.db and stays editable from the UI; this is only what
+# it was generated from, kept so it can be rebuilt.
+!/dashboard/homelab-dashboard/**
 projects/
 website/
 work/
