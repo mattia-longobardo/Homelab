@@ -49,16 +49,11 @@ services:
       PAPERLESS_USE_X_FORWARD_HOST: "true"
       PAPERLESS_USE_X_FORWARD_PORT: "true"
       PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
-      # SSO via Authentik (OIDC via allauth); signup social disabilitati,
-      # l'account esistente è pre-collegato via SocialAccount (uid = sub Authentik).
       PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
       PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect": {"SCOPE": ["openid", "profile", "email"], "APPS": [{"provider_id": "authentik", "name": "Authentik", "client_id": "${PAPERLESS_OIDC_CLIENT_ID}", "secret": "${PAPERLESS_OIDC_CLIENT_SECRET}", "settings": {"server_url": "https://${AUTHENTIK_HOST}/application/o/paperless/.well-known/openid-configuration"}}]}}'
       PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS: "false"
-      # Solo SSO: login regolare disabilitato + redirect automatico ad Authentik.
-      # I token API (es. scanner) continuano a funzionare.
       PAPERLESS_DISABLE_REGULAR_LOGIN: "true"
       PAPERLESS_REDIRECT_LOGIN_TO_SSO: "true"
-      # SMTP via Stalwart (rete mail_internal, cert LE valido sull'alias)
       PAPERLESS_EMAIL_HOST: ${SMTP_HOST}
       PAPERLESS_EMAIL_PORT: "465"
       PAPERLESS_EMAIL_USE_SSL: "true"
@@ -87,43 +82,41 @@ services:
     image: mariadb:10.11
     container_name: seafile-mysql
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_SEAFILE_PASSWORD}  # Required, set the root's password of MySQL service.
+      - MYSQL_ROOT_PASSWORD=${DB_SEAFILE_PASSWORD}
       - MYSQL_LOG_CONSOLE=true
       - MARIADB_AUTO_UPGRADE=1
     volumes:
-      - /home/mattia/storage/seafile/seafile-mysql/db:/var/lib/mysql  # Required, specifies the path to MySQL data persistent store.
+      - /home/mattia/storage/seafile/seafile-mysql/db:/var/lib/mysql
     restart: unless-stopped
     mem_limit: 2g
     cpus: "2.0"
     networks:
       - seafile_internal
-          
+
   seafile:
     image: seafileltd/seafile-mc:13.0-latest
     container_name: seafile
     volumes:
-      - /home/mattia/storage/seafile/seafile-data:/shared   # Required, specifies the path to Seafile data persistent store.
+      - /home/mattia/storage/seafile/seafile-data:/shared
     tmpfs:
       - /opt/seafile/pids:mode=1777
     environment:
-      - NON_ROOT=true  # Run server as the 'seafile' user (uid 8000) instead of root; /shared must be owned by 8000:8000.
+      - NON_ROOT=true
       - SEAFILE_MYSQL_DB_HOST=db
       - SEAFILE_MYSQL_DB_PORT=3306
-      # DB esistenti (upgrade da 11) appartengono a root: si continua con root.
       - SEAFILE_MYSQL_DB_USER=root
       - SEAFILE_MYSQL_DB_PASSWORD=${DB_SEAFILE_PASSWORD}
       - INIT_SEAFILE_MYSQL_ROOT_PASSWORD=${DB_SEAFILE_PASSWORD}
       - SEAFILE_MYSQL_DB_CCNET_DB_NAME=ccnet_db
       - SEAFILE_MYSQL_DB_SEAFILE_DB_NAME=seafile_db
       - SEAFILE_MYSQL_DB_SEAHUB_DB_NAME=seahub_db
-      - JWT_PRIVATE_KEY=${SEAFILE_JWT_PRIVATE_KEY}  # Required from 12.0
-      - TIME_ZONE=Europe/Rome  # Optional, default is UTC. Should be uncomment and set to your local time zone.
-      - SEAFILE_ADMIN_EMAIL=${SEAFILE_ADMIN_EMAIL} # Specifies Seafile admin user, default is 'me@example.com'.
-      - SEAFILE_ADMIN_PASSWORD=${SEAFILE_ADMIN_PASSWORD}     # Specifies Seafile admin password, default is 'asecret'.
+      - JWT_PRIVATE_KEY=${SEAFILE_JWT_PRIVATE_KEY}
+      - TIME_ZONE=Europe/Rome
+      - SEAFILE_ADMIN_EMAIL=${SEAFILE_ADMIN_EMAIL}
+      - SEAFILE_ADMIN_PASSWORD=${SEAFILE_ADMIN_PASSWORD}
       - SEAFILE_SERVER_HOSTNAME=${SEAFILE_SERVER_HOSTNAME}
-      - SEAFILE_SERVER_PROTOCOL=https  # TLS terminato a monte (Cloudflare tunnel)
+      - SEAFILE_SERVER_PROTOCOL=https
       - SEAFILE_LOG_TO_STDOUT=true
-      # Da Seafile 13 la cache di default è Redis (memcached rimosso).
       - CACHE_PROVIDER=redis
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -134,16 +127,13 @@ services:
     mem_limit: 3g
     cpus: "2.0"
     healthcheck:
-      # Catches the "container Up but internal nginx returns 502" failure mode
-      # (seahub/seaf-server died, or bootstrap stuck unable to resolve the DB host).
-      # curl -f fails on 5xx and on connection refused; the healthy login redirect (302) passes.
       test: ["CMD", "curl", "-fsS", "http://localhost:80/"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 180s
     labels:
-      - 'autoheal=true'  # restarted by the autoheal container (network stack) when unhealthy
+      - 'autoheal=true'
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy_public'
       - 'traefik.http.routers.seafile-router.rule=Host(`${SEAFILE_HOST}`)'
@@ -153,7 +143,6 @@ services:
       - proxy_public
       - seafile_internal
       - db_internal
-      # SMTP config in seahub_settings.py (EMAIL_HOST=${SMTP_HOST})
       - mail_internal
 
 # Teable # --------------------------------------------------------------------------------------------------------------
@@ -164,33 +153,26 @@ services:
     volumes:
       - ./teable/assets:/app/.assets:rw
     environment:
-      # --- Basic Configuration ---
       - NEXT_ENV_IMAGES_ALL_REMOTE=true
       - POSTGRES_PASSWORD=${DB_TEABLE_PASSWORD}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
       - PUBLIC_ORIGIN=https://${TEABLE_HOST}
 
-      # --- Postgres Configuration ---
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=teable
       - POSTGRES_USER=teable
-      
-      # --- Redis Configuration ---
+
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DB=3
 
-      # --- App / Connection Strings (MUST BE MANUALLY EXPANDED) ---
-      
-      # Format: postgresql://USER:PASSWORD@HOST:PORT/DB
       - PRISMA_DATABASE_URL=postgresql://teable:${DB_TEABLE_PASSWORD}@postgres:5432/teable
       - BACKEND_CACHE_PROVIDER=redis
       - BACKEND_CACHE_REDIS_URI=redis://default:${REDIS_PASSWORD}@redis:6379/3
 
-      # --- SSO via Authentik (OIDC): match automatico per email ---
       - SOCIAL_AUTH_PROVIDERS=oidc
       - BACKEND_OIDC_CLIENT_ID=${TEABLE_OIDC_CLIENT_ID}
       - BACKEND_OIDC_CLIENT_SECRET=${TEABLE_OIDC_CLIENT_SECRET}
@@ -201,7 +183,6 @@ services:
       - BACKEND_OIDC_ISSUER=https://${AUTHENTIK_HOST}/application/o/teable/
       - BACKEND_OIDC_OTHER={"scope":["openid","profile","email"]}
 
-      # --- SMTP via Stalwart (rete mail_internal) ---
       - BACKEND_MAIL_HOST=${SMTP_HOST}
       - BACKEND_MAIL_PORT=465
       - BACKEND_MAIL_SECURE=true
@@ -236,22 +217,17 @@ services:
     environment:
       - TZ=Europe/Rome
       - IMMICH_PORT=2283
-      # DB dedicato: Immich richiede l'estensione VectorChord, assente da pgvector/pgvector:pg18 del db stack.
       - DB_HOSTNAME=immich-postgres
       - DB_PORT=5432
       - DB_USERNAME=immich
       - DB_PASSWORD=${DB_IMMICH_PASSWORD}
       - DB_DATABASE_NAME=immich
       - DB_VECTOR_EXTENSION=vectorchord
-      # Redis centralizzato (db stack), indice logico 5
       - REDIS_HOSTNAME=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DBINDEX=5
       - IMMICH_MACHINE_LEARNING_URL=http://immich-ml:3003
-      # SSO Authentik (OIDC): issuer/client vengono salvati nel DB di Immich
-      # (Administration > Settings > OAuth); qui restano documentati per il rebuild.
-      # OIDC_ISSUER=https://${AUTHENTIK_HOST}/application/o/immich/
     volumes:
       - /home/mattia/storage/photos:/data
       - /etc/localtime:/etc/localtime:ro
@@ -273,10 +249,6 @@ services:
       - 'traefik.http.services.immich-service.loadbalancer.server.port=2283'
       - 'traefik.http.middlewares.immich-https.headers.customrequestheaders.X-Forwarded-Proto=https'
       - 'traefik.http.routers.immich-router.middlewares=immich-https'
-      # Accesso diretto in LAN via split DNS su Pi-hole: TLS servito da Traefik,
-      # senza passare da Cloudflare (che limita le richieste a 100 MiB, tetto che
-      # bloccherebbe il backup dei video dal telefono).
-      # lan-only@file tiene questo router fuori dalla portata di Internet.
       - 'traefik.http.routers.immich-secure-router.rule=Host(`${IMMICH_HOST}`)'
       - 'traefik.http.routers.immich-secure-router.entrypoints=websecure'
       - 'traefik.http.routers.immich-secure-router.tls=true'
@@ -312,7 +284,6 @@ services:
       - immich_internal
 
   immich-postgres:
-    # Pinnato: immagine ufficiale Immich (Postgres 14 + VectorChord), l'unica supportata per il vector search.
     image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
     container_name: immich-postgres
     user: "1000:1000"
@@ -346,6 +317,5 @@ networks:
   seafile_internal:
     name: seafile_internal
     internal: true
-  # Non internal: immich-ml deve scaricare i modelli CLIP da HuggingFace.
   immich_internal:
     name: immich_internal

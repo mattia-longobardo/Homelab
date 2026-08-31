@@ -11,11 +11,7 @@ services:
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      # HTTP/3: i browser imparano da Cloudflare (header alt-svc) che l'origine
-      # parla h3 e, con lo split DNS, tentano QUIC su UDP 443 anche in locale.
-      # Senza questo Chrome fallisce con ERR_QUIC_PROTOCOL_ERROR.
       - "--entrypoints.websecure.http3=true"
-      # NetBird gRPC/WSS: long-lived streams must not be cut by responding timeouts.
       - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=0"
       - "--entrypoints.websecure.transport.respondingTimeouts.writeTimeout=0"
       - "--entrypoints.websecure.transport.respondingTimeouts.idleTimeout=0"
@@ -26,13 +22,10 @@ services:
       - "--metrics.prometheus.entrypoint=metrics"
       - "--metrics.prometheus.addEntryPointsLabels=true"
       - "--metrics.prometheus.addServicesLabels=true"
-      # Access log for fail2ban. Errors only, so the file stays small; port 443 is the
-      # only WAN-forwarded port, so websecure clients are the real remote IPs.
       - "--accesslog=true"
       - "--accesslog.format=json"
       - "--accesslog.filepath=/var/log/traefik/access.log"
       - "--accesslog.filters.statusCodes=400-599"
-      # Let's Encrypt via Cloudflare DNS-01 (works without port 80/443 reachability).
       - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"
       - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
@@ -42,7 +35,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp"   # QUIC / HTTP/3
+      - "443:443/udp"
     restart: always
     mem_limit: 512m
     cpus: "0.75"
@@ -65,8 +58,6 @@ services:
 # Cloudflare Tunnel # --------------------------------------------------------------------------------------------------------------
 
   cloudflare:
-    # Pinned: 2026.8.0 strips the trailing slash from proxied request paths,
-    # which breaks authentik/seafile/paperless (404s and login redirect loops).
     image: cloudflare/cloudflared:2026.8.1
     container_name: cloudflare
     network_mode: host
@@ -76,7 +67,8 @@ services:
     restart: always
     mem_limit: 256m
     cpus: "0.5"
-  # Pi-hole # --------------------------------------------------------------------------------------------------------------
+
+# Pi-hole # --------------------------------------------------------------------------------------------------------------
 
   pihole:
     container_name: pihole
@@ -85,26 +77,14 @@ services:
     environment:
       TZ: 'Europe/Rome'
       FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
-      # If using Docker's default `bridge` network setting the dns listening mode should be set to 'ALL'
       FTLCONF_webserver_port: 1000
       FTLCONF_dns_listeningMode: 'ALL'
       FTLCONF_dns_upstreams: '1.1.1.1;1.0.0.1'
       FTLCONF_dns_cache_size: 10000
-      # Wildcard: every *.local host -> Traefik box (192.168.1.220).
-      # router.local kept on the gateway. Semicolon-separated = v6 array.
-      # local=/<host>/ : split-DNS hosts are answered from custom.list only and
-      # never forwarded, so the upstream HTTPS (type 65) record with Cloudflare's
-      # ech= blob is not returned. Without this Chrome tries ECH against Traefik
-      # and fails with ERR_ECH_FALLBACK_CERTIFICATE_INVALID.
       FTLCONF_misc_dnsmasq_lines: 'address=/local/192.168.1.220;address=/router.local/192.168.1.1;local=/trek.longobardo.me/;local=/photo.longobardo.me/'
     volumes:
-      # For persisting Pi-hole's databases and common configuration file
       - './pihole:/etc/pihole'
-      # Uncomment the below if you have custom dnsmasq config files that you want to persist. Not needed for most starting fresh with Pi-hole v6. If you're upgrading from v5 you and have used this directory before, you should keep it enabled for the first v6 container start to allow for a complete migration. It can be removed afterwards. Needs environment variable FTLCONF_misc_etc_dnsmasq_d: 'true'
-      #- './etc-dnsmasq.d:/etc/dnsmasq.d'
     cap_add:
-      # See https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
-      # Optional, if Pi-hole should get some more processing time
       - SYS_NICE
       - NET_ADMIN
     restart: always
@@ -154,8 +134,6 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      # Catch-all router: lowest priority (1), matches every host and path.
-      # Any higher-priority router defined elsewhere wins; this is the final fallback.
       - "traefik.http.routers.error-pages-catchall.rule=HostRegexp(`.+`)"
       - "traefik.http.routers.error-pages-catchall.entrypoints=web"
       - "traefik.http.routers.error-pages-catchall.priority=1"
@@ -173,9 +151,6 @@ services:
     user: "1000:1000"
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-      # Unproxied A records: vpn = direct endpoint for WireGuard clients (UDP
-      # can't traverse the Cloudflare proxy/tunnel); mx = MX target for Stalwart
-      # (SMTP can't traverse the tunnel either).
       - DOMAINS=${DDNS_DOMAINS}
       - PROXIED=false
       - IP6_PROVIDER=none
@@ -195,32 +170,19 @@ services:
   stalwart:
     image: stalwartlabs/stalwart:latest
     container_name: stalwart
-    # Deviazione da user 1000:1000: l'immagine gestisce da sé l'utenza interna
-    # (entrypoint + utente `stalwart`); forzare l'UID rompe la scrittura di
-    # registry/config interni (Permission denied).
     environment:
-      # Credenziale amministrativa di riserva (recovery), usata anche per la
-      # gestione via API; indipendente dall'admin creato nel wizard.
       - STALWART_RECOVERY_ADMIN=${STALWART_RECOVERY_ADMIN}
-      # Token usato dal macro %{env:CLOUDFLARE_API_TOKEN}% nella config ACME DNS-01.
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-      # Password dell'SMTP User su SMTP2GO, referenziata dal route relay outbound
-      # (secret @type EnvironmentVariable nel registry).
       - SMTP2GO_SMTP_PASSWORD=${SMTP2GO_SMTP_PASSWORD}
     volumes:
-      # NB: dalle versioni recenti l'immagine usa /var/lib/stalwart come base dir
       - ./stalwart/data:/var/lib/stalwart
-      # 0.16+: config.json (puntatore al datastore) vive in /etc/stalwart e va
-      # persistito, altrimenti a ogni ricreazione il server riparte in bootstrap mode.
       - ./stalwart/etc:/etc/stalwart
     ports:
-      # L4 exception: SMTP/IMAP non sono proxyabili da Traefik HTTP né dal tunnel
-      # Cloudflare; il router deve fare port-forwarding di queste porte.
-      - "25:25"       # SMTP MX
-      - "465:465"     # SMTP submission TLS
-      - "587:587"     # SMTP submission STARTTLS
-      - "993:993"     # IMAPS
-      - "4190:4190"   # ManageSieve
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "993:993"
+      - "4190:4190"
     restart: always
     mem_limit: 1g
     cpus: "1.0"
@@ -232,13 +194,10 @@ services:
       - "traefik.http.services.stalwart-service.loadbalancer.server.port=8080"
     networks:
       proxy_public:
-      # Rete SMTP condivisa: i client interni raggiungono Stalwart come
-      # mx.longobardo.me, così il cert LE wildcard valida senza skip-verify.
       mail_internal:
         aliases:
           - mx.longobardo.me
           - stalwart
-
 
 networks:
   proxy_public:

@@ -13,7 +13,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_DB: ${POSTGRES_DB}
       DB_TRAVEL_PASSWORD: ${DB_TRAVEL_PASSWORD}
-      # DB e Redis migrati sui servizi condivisi dello stack db/ (rete db_internal).
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
       REDIS_PORT: 6379
