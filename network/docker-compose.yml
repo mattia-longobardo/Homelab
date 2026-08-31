@@ -11,6 +11,10 @@ services:
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      # HTTP/3: i browser imparano da Cloudflare (header alt-svc) che l'origine
+      # parla h3 e, con lo split DNS, tentano QUIC su UDP 443 anche in locale.
+      # Senza questo Chrome fallisce con ERR_QUIC_PROTOCOL_ERROR.
+      - "--entrypoints.websecure.http3=true"
       # NetBird gRPC/WSS: long-lived streams must not be cut by responding timeouts.
       - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=0"
       - "--entrypoints.websecure.transport.respondingTimeouts.writeTimeout=0"
@@ -38,6 +42,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"   # QUIC / HTTP/3
     restart: always
     mem_limit: 512m
     cpus: "0.75"
@@ -87,7 +92,11 @@ services:
       FTLCONF_dns_cache_size: 10000
       # Wildcard: every *.local host -> Traefik box (192.168.1.220).
       # router.local kept on the gateway. Semicolon-separated = v6 array.
-      FTLCONF_misc_dnsmasq_lines: 'address=/local/192.168.1.220;address=/router.local/192.168.1.1'
+      # local=/<host>/ : split-DNS hosts are answered from custom.list only and
+      # never forwarded, so the upstream HTTPS (type 65) record with Cloudflare's
+      # ech= blob is not returned. Without this Chrome tries ECH against Traefik
+      # and fails with ERR_ECH_FALLBACK_CERTIFICATE_INVALID.
+      FTLCONF_misc_dnsmasq_lines: 'address=/local/192.168.1.220;address=/router.local/192.168.1.1;local=/trek.longobardo.me/;local=/photo.longobardo.me/'
     volumes:
       # For persisting Pi-hole's databases and common configuration file
       - './pihole:/etc/pihole'
