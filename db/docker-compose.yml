@@ -50,15 +50,8 @@ services:
     volumes:
       - ./arangodb/data:/var/lib/arangodb3
       - ./arangodb/apps:/var/lib/arangodb3-apps
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.arangodb-router.rule=Host(`arango.longobardo.me`) || Host(`arango.local`)"
-      - "traefik.http.routers.arangodb-router.entrypoints=web"
-      - "traefik.http.services.arangodb-service.loadbalancer.server.port=8529"
     networks:
       - db_internal
-      - proxy_public
 
 # Silo # --------------------------------------------------------------------------------------------------------------
   silo:
@@ -80,15 +73,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.silo-router.rule=Host(`${SILO_HOST}`) || Host(`silo.local`)"
-      - "traefik.http.routers.silo-router.entrypoints=web"
-      - "traefik.http.services.silo-service.loadbalancer.server.port=9001"
     networks:
       - db_internal
-      - proxy_public
 
 # Redis # --------------------------------------------------------------------------------------------------------------
   redis:
