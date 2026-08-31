@@ -10,9 +10,6 @@ services:
   trek:
     image: mauriceboe/trek:latest-pre
     container_name: trek
-    # No `user:` override: the image's entrypoint starts as root and drops to its
-    # bundled `node` user (UID 1000) itself; forcing user: breaks that su and the
-    # container crash-loops with "failed switching to 'node': operation not permitted".
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -24,14 +21,10 @@ services:
       - LOG_LEVEL=info
       - ADMIN_EMAIL=${TREK_ADMIN_EMAIL}
       - ADMIN_PASSWORD=${TREK_ADMIN_PASSWORD}
-      # SSO via Authentik (OIDC): aggancio all'account esistente per email/sub.
-      # Niente OIDC_ONLY: gli altri utenti continuano col login password.
       - OIDC_ISSUER=https://${AUTHENTIK_HOST}/application/o/trek/
       - OIDC_CLIENT_ID=${TREK_OIDC_CLIENT_ID}
       - OIDC_CLIENT_SECRET=${TREK_OIDC_CLIENT_SECRET}
       - OIDC_DISPLAY_NAME=Authentik
-      # SMTP via Stalwart (rete mail_internal): le env hanno priorità sulle
-      # impostazioni UI; porta 465 = TLS implicito (secure) per l'app.
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=465
       - SMTP_USER=${SMTP_NOREPLY_USER}
@@ -58,9 +51,6 @@ services:
       - 'traefik.http.services.trek-service.loadbalancer.server.port=3000'
       - 'traefik.http.middlewares.trek-https.headers.customrequestheaders.X-Forwarded-Proto=https'
       - 'traefik.http.routers.trek-router.middlewares=trek-https'
-      # Accesso diretto in LAN via split DNS su Pi-hole: TLS servito da Traefik,
-      # senza passare da Cloudflare (che limita le richieste a 100 MiB).
-      # lan-only@file tiene questo router fuori dalla portata di Internet.
       - 'traefik.http.routers.trek-secure-router.rule=Host(`${TREK_HOST}`)'
       - 'traefik.http.routers.trek-secure-router.entrypoints=websecure'
       - 'traefik.http.routers.trek-secure-router.tls=true'
@@ -80,19 +70,14 @@ services:
     environment:
       - TZ=Europe/Rome
       - ORIGIN=https://${AIRTRAIL_HOST}
-      # DB sul Postgres condiviso (stack db/, rete db_internal)
       - DB_URL=postgres://airtrail:${DB_AIRTRAIL_PASSWORD}@postgres:5432/airtrail
-      # Senza UPLOAD_LOCATION gli upload (es. loghi compagnie) sono disabilitati
       - UPLOAD_LOCATION=/app/uploads
-      # SSO via Authentik (OIDC): l'account esistente è associato via oauth_id
-      # (= sub Authentik) impostato direttamente nel DB.
       - OAUTH_ENABLED=true
       - OAUTH_ISSUER_URL=https://${AUTHENTIK_HOST}/application/o/airtrail/
       - OAUTH_CLIENT_ID=${AIRTRAIL_OAUTH_CLIENT_ID}
       - OAUTH_CLIENT_SECRET=${AIRTRAIL_OAUTH_CLIENT_SECRET}
       - OAUTH_SCOPE=openid profile email
       - OAUTH_BUTTON_TEXT=Login con Authentik
-      # Solo SSO: form password nascosto + redirect automatico ad Authentik
       - OAUTH_HIDE_PASSWORD_FORM=true
       - OAUTH_AUTO_LOGIN=true
     volumes:
@@ -101,7 +86,6 @@ services:
     mem_limit: 1g
     cpus: "1.0"
     healthcheck:
-      # Script incluso nell'immagine: GET /api/ping, exit 1 se != "pong"
       test: ["CMD", "node", "/app/docker/healthcheck.js"]
       interval: 30s
       timeout: 10s

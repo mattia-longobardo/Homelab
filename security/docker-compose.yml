@@ -11,8 +11,6 @@ services:
       - ./netbird/data:/var/lib/netbird
     command: ["--config", "/etc/netbird/config.yaml"]
     ports:
-      # L4 exception: embedded STUN needs raw UDP (Traefik cannot proxy it).
-      # Router must forward UDP 3478 here for external NAT traversal.
       - "3478:3478/udp"
     restart: unless-stopped
     mem_limit: 1g
@@ -20,8 +18,6 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      # gRPC (Management + Signal) — h2c backend, most specific paths, highest priority.
-      # websecure+TLS: ${NETBIRD_HOST} is DNS-only (no CF proxy), Traefik owns TLS.
       - "traefik.http.routers.netbird-grpc-router.rule=Host(`${NETBIRD_HOST}`) && (PathPrefix(`/signalexchange.SignalExchange/`) || PathPrefix(`/management.ManagementService/`) || PathPrefix(`/management.ProxyService/`))"
       - "traefik.http.routers.netbird-grpc-router.entrypoints=websecure"
       - "traefik.http.routers.netbird-grpc-router.tls=true"
@@ -31,7 +27,6 @@ services:
       - "traefik.http.routers.netbird-grpc-router.middlewares=netbird-https"
       - "traefik.http.services.netbird-grpc-service.loadbalancer.server.port=8080"
       - "traefik.http.services.netbird-grpc-service.loadbalancer.server.scheme=h2c"
-      # REST API, Relay (WSS), ws-proxy and embedded Dex (/oauth2).
       - "traefik.http.routers.netbird-api-router.rule=Host(`${NETBIRD_HOST}`) && (PathPrefix(`/api`) || PathPrefix(`/relay`) || PathPrefix(`/ws-proxy/`) || PathPrefix(`/oauth2`))"
       - "traefik.http.routers.netbird-api-router.entrypoints=websecure"
       - "traefik.http.routers.netbird-api-router.tls=true"
@@ -40,7 +35,6 @@ services:
       - "traefik.http.routers.netbird-api-router.service=netbird-api-service"
       - "traefik.http.routers.netbird-api-router.middlewares=netbird-https"
       - "traefik.http.services.netbird-api-service.loadbalancer.server.port=8080"
-      # Tell the server it is behind HTTPS so the embedded IdP builds https URLs.
       - "traefik.http.middlewares.netbird-https.headers.customrequestheaders.X-Forwarded-Proto=https"
     networks:
       - proxy_public
@@ -63,7 +57,6 @@ services:
       - "autoheal=true"
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      # Catch-all for the host — serves the SPA; lower priority than the server routes above.
       - "traefik.http.routers.netbird-dashboard-router.rule=Host(`${NETBIRD_HOST}`)"
       - "traefik.http.routers.netbird-dashboard-router.entrypoints=websecure"
       - "traefik.http.routers.netbird-dashboard-router.tls=true"
@@ -71,7 +64,6 @@ services:
       - "traefik.http.routers.netbird-dashboard-router.priority=10"
       - "traefik.http.routers.netbird-dashboard-router.service=netbird-dashboard-service"
       - "traefik.http.services.netbird-dashboard-service.loadbalancer.server.port=80"
-      # http → https redirect for the host (port 80 reaches Traefik only if the router forwards it).
       - "traefik.http.routers.netbird-dashboard-http-router.rule=Host(`${NETBIRD_HOST}`)"
       - "traefik.http.routers.netbird-dashboard-http-router.entrypoints=web"
       - "traefik.http.routers.netbird-dashboard-http-router.service=netbird-dashboard-service"
@@ -94,7 +86,6 @@ services:
     volumes:
       - ./netbird/client:/var/lib/netbird
     cap_add:
-      # VPN agent: creates the WireGuard interface and manages host routes/iptables.
       - NET_ADMIN
       - SYS_ADMIN
     devices:
@@ -109,19 +100,19 @@ services:
     container_name: frigate
     stop_grace_period: 20s
     image: ghcr.io/blakeblackshear/frigate:stable
-    shm_size: "512mb" # update for your cameras based on calculation above
+    shm_size: "512mb"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./frigate/config:/config
       - ./frigate/storage:/media/frigate
-      - type: tmpfs # Optional: 1GB of memory, reduces SSD/SD Card wear
+      - type: tmpfs
         target: /tmp/cache
         tmpfs:
           size: 1000000000
     ports:
-      - "8554:8554" # RTSP feeds
-      - "8555:8555/tcp" # WebRTC over tcp
-      - "8555:8555/udp" # WebRTC over udp
+      - "8554:8554"
+      - "8555:8555/tcp"
+      - "8555:8555/udp"
     restart: unless-stopped
     mem_limit: 6g
     cpus: "4.0"
@@ -156,8 +147,6 @@ services:
       AUTHENTIK_EMAIL__FROM: Authentik <${SMTP_NOREPLY_USER}>
       AUTHENTIK_EMAIL__TIMEOUT: "10"
     volumes:
-      # /data e' la base del file backend (storage.file.path): deve essere un
-      # mount reale, altrimenti Authentik disabilita l'upload di icone/file.
       - ./authentik/data:/data
       - ./authentik/templates:/templates
     restart: unless-stopped
@@ -204,8 +193,6 @@ services:
     mem_limit: 1g
     cpus: "1.0"
     labels:
-      # Redis can be recreated by Watchtower while this process remains up.
-      # Autoheal restarts the worker when Authentik reports a stale heartbeat.
       - "autoheal=true"
     networks:
       - db_internal
@@ -236,8 +223,6 @@ services:
       - SSO_CLIENT_SECRET=${VAULTWARDEN_SSO_CLIENT_SECRET}
       - SSO_SCOPES=email profile
       - SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION=true
-      # Login SOLO via Authentik (niente form password); la master password
-      # resta comunque necessaria per la decifratura del vault (by design).
       - SSO_ONLY=true
     volumes:
       - ./vaultwarden:/data

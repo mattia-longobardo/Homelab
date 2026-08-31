@@ -28,19 +28,12 @@ services:
     container_name: grafana
     user: "1000:1000"
     environment:
-      # SMTP via Stalwart (rete mail_internal): 587 STARTTLS, il mailer di
-      # Grafana non supporta il TLS implicito della 465.
       - GF_SMTP_ENABLED=true
       - GF_SMTP_HOST=${SMTP_HOST}:587
       - GF_SMTP_USER=${SMTP_NOREPLY_USER}
       - GF_SMTP_PASSWORD=${SMTP_NOREPLY_PASSWORD}
       - GF_SMTP_FROM_ADDRESS=${SMTP_NOREPLY_USER}
       - GF_SMTP_FROM_NAME=Grafana
-      # SSO via Authentik (OIDC): match per email sull'account esistente
-      # (ALLOW_INSECURE_EMAIL_LOOKUP), nessuna creazione automatica di utenti
-      # (ALLOW_SIGN_UP=false) e ruoli gestiti in Grafana (SKIP_ORG_ROLE_SYNC).
-      # Il lookup per email è sicuro SOLO finché Authentik resta senza
-      # self-signup/enrollment e con email gestite dall'admin.
       - GF_SERVER_ROOT_URL=https://${GRAFANA_HOST}
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
       - GF_AUTH_GENERIC_OAUTH_NAME=Authentik
@@ -54,24 +47,9 @@ services:
       - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=false
       - GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC=true
       - GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true
-      # Token dell'applicazione "Grafana" su Gotify. Serviva a interpolare
-      # $GOTIFY_APP_TOKEN nei file di provisioning alerting: dal 2026-08-22 non
-      # c'e' piu' provisioning e il token e' gia' risolto dentro il contact
-      # point nel DB. Tenuto solo per poter riabilitare il provisioning.
       - GOTIFY_APP_TOKEN=${GOTIFY_APP_TOKEN}
     volumes:
-      # Unica fonte di verita': il DB. Alerting e dashboard NON sono piu'
-      # provisioned da file (2026-08-22): con provenance=file Grafana li marca
-      # immutabili e la UI non li lascia modificare, nemmeno da admin. I marker
-      # sono stati rimossi dal DB (provenance_type + annotation
-      # grafana.app/managedBy) e i due mount di provisioning tolti qui sotto.
-      # Tutto cio' che riguarda Grafana sta sotto ./grafana: i vecchi file di
-      # provisioning (ora inerti) in ./grafana/grafana-alerting e
-      # ./grafana/grafana-dashboards, lo snapshot del DB pre-conversione in
-      # ./grafana/grafana.db.bak-2026-08-22.
-      # ATTENZIONE: regole di alerting e dashboard vivono solo in ./grafana
-      # (gitignored) -> senza backup di quella cartella si perdono.
-      - ./grafana:/var/lib/grafana  # Persists dashboards, alerting, users
+      - ./grafana:/var/lib/grafana
     restart: unless-stopped
     mem_limit: 1g
     cpus: "1.0"
@@ -85,7 +63,6 @@ services:
       - proxy_public
       - metrics_internal
       - mail_internal
-
 
 # Gotify # --------------------------------------------------------------------------------------------------------------
 
@@ -141,7 +118,6 @@ services:
     networks:
       - proxy_public
       - metrics_internal
-
 
 # Node Exporter # --------------------------------------------------------------------------------------------------------------
 
