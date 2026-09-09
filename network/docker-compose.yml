@@ -78,8 +78,6 @@ services:
       TZ: 'Europe/Rome'
       FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
       FTLCONF_webserver_port: 1000
-      FTLCONF_dns_listeningMode: 'ALL'
-      FTLCONF_dns_upstreams: '1.1.1.1;1.0.0.1'
       FTLCONF_dns_cache_size: 10000
       FTLCONF_misc_dnsmasq_lines: 'address=/local/192.168.1.220;address=/router.local/192.168.1.1;local=/photo.longobardo.me/'
     volumes:
@@ -127,6 +125,7 @@ services:
     container_name: error-pages
     volumes:
       - ./error-pages/404.html:/usr/share/nginx/html/404.html:ro
+      - ./error-pages/sw.js:/usr/share/nginx/html/sw.js:ro
       - ./error-pages/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
     mem_limit: 64m
