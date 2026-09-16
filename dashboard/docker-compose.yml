@@ -137,7 +137,7 @@ services:
       - '--path.sysfs=/host/sys'
       - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-      - '--web.listen-address=172.18.0.1:9100'
+      - '--web.listen-address=172.20.0.1:9100'
     restart: unless-stopped
     mem_limit: 128m
     cpus: "0.25"
