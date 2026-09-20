@@ -79,7 +79,7 @@ services:
       FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
       FTLCONF_webserver_port: 1000
       FTLCONF_dns_cache_size: 10000
-      FTLCONF_misc_dnsmasq_lines: 'address=/local/192.168.1.220;address=/router.local/192.168.1.1;local=/photo.longobardo.me/;local=/dash.longobardo.me/'
+      FTLCONF_misc_dnsmasq_lines: 'address=/local/192.168.1.220;address=/router.local/192.168.1.1;local=/photo.longobardo.me/'
     volumes:
       - './pihole:/etc/pihole'
     cap_add:

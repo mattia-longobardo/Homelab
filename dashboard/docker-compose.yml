@@ -89,6 +89,53 @@ services:
     networks:
       - proxy_public
 
+# Phoenix # --------------------------------------------------------------------------------------------------------------
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: phoenix
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Rome
+      - PHOENIX_WORKING_DIR=/mnt/data
+      - PHOENIX_SQL_DATABASE_URL=postgresql://phoenix:${DB_PHOENIX_PASSWORD}@postgres:5432/phoenix
+      - PHOENIX_ENABLE_AUTH=true
+      - PHOENIX_SECRET=${PHOENIX_SECRET}
+      - PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD=${PHOENIX_ADMIN_INITIAL_PASSWORD}
+      - PHOENIX_USE_SECURE_COOKIES=false
+      - PHOENIX_CSRF_TRUSTED_ORIGINS=http://${PHOENIX_HOST}
+      - PHOENIX_DEFAULT_RETENTION_POLICY_DAYS=90
+      - PHOENIX_ENABLE_PROMETHEUS=true
+      - PHOENIX_TELEMETRY_ENABLED=false
+    volumes:
+      - ./phoenix:/mnt/data
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:6006/', timeout=5).status < 500 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.phoenix-router.rule=Host(`${PHOENIX_HOST}`)"
+      - "traefik.http.routers.phoenix-router.entrypoints=web"
+      - "traefik.http.routers.phoenix-router.middlewares=lan-only@file"
+      - "traefik.http.services.phoenix-service.loadbalancer.server.port=6006"
+    networks:
+      - proxy_public
+      - db_internal
+      - metrics_internal
+
 # Blackbox Exporter # --------------------------------------------------------------------------------------------------------------
 
   blackbox-exporter:
@@ -141,6 +188,50 @@ services:
     restart: unless-stopped
     mem_limit: 128m
     cpus: "0.25"
+
+# Umami # ------------------------------------------------------------------------------------------------------------------------
+
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: umami
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Rome
+      - DATABASE_TYPE=postgresql
+      - DATABASE_URL=postgresql://umami:${DB_UMAMI_PASSWORD}@postgres:5432/umami
+      - APP_SECRET=${UMAMI_APP_SECRET}
+      # Umami is cookieless by design: visitors are counted with a salted daily
+      # hash, so the site needs no consent banner. Keep it that way.
+      - DISABLE_TELEMETRY=1
+      # Serve the tracker under a neutral name; the default /umami.js is on
+      # most blocker lists, which would silently lose most of the traffic.
+      - TRACKER_SCRIPT_NAME=script.js
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/heartbeat >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.umami-router.rule=Host(`${UMAMI_HOST}`)"
+      - "traefik.http.routers.umami-router.entrypoints=web"
+      # Deliberately NOT lan-only: visitors' browsers must reach the tracker
+      # script and /api/send from the public internet.
+      - "traefik.http.services.umami-service.loadbalancer.server.port=3000"
+    networks:
+      - proxy_public
+      - db_internal
 
 networks:
   proxy_public:
