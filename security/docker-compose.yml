@@ -127,7 +127,7 @@ services:
 # Authentik # --------------------------------------------------------------------------------------------------------------
 
   authentik-server:
-    image: ghcr.io/goauthentik/server:2026.8.0
+    image: ghcr.io/goauthentik/server:2026.8
     container_name: authentik-server
     command: server
     environment:
@@ -166,7 +166,7 @@ services:
       - mail_internal
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:2026.8.0
+    image: ghcr.io/goauthentik/server:2026.8
     container_name: authentik-worker
     command: worker
     environment:
