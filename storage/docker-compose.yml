@@ -29,7 +29,10 @@ services:
 # Paperless # --------------------------------------------------------------------------------------------------------------
 
   paperless-ngx:
-    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    image: paperless-ngx-homelab:3.2.1-responses
+    build:
+      context: ./paperless-ngx/homelab
+      dockerfile: Dockerfile.homelab
     container_name: paperless-ngx
     volumes:
       - ./paperless-ngx/data:/usr/src/paperless/data
@@ -60,6 +63,7 @@ services:
       PAPERLESS_EMAIL_HOST_USER: ${SMTP_NOREPLY_USER}
       PAPERLESS_EMAIL_HOST_PASSWORD: ${SMTP_NOREPLY_PASSWORD}
       PAPERLESS_EMAIL_FROM: ${SMTP_NOREPLY_USER}
+      PAPERLESS_AI_LLM_USE_RESPONSES_API: "true"
     restart: unless-stopped
     mem_limit: 4g
     cpus: "2.0"
