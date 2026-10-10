@@ -154,6 +154,11 @@ services:
   cadvisor:
     image: ghcr.io/google/cadvisor:latest
     container_name: cadvisor
+    command:
+      - '--housekeeping_interval=15s'
+      - '--docker_only=true'
+      - '--store_container_labels=false'
+      - '--disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,process,referenced_memory,resctrl,sched,tcp,udp,percpu,disk,perf_event'
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -187,7 +192,7 @@ services:
       - '--web.listen-address=172.20.0.1:9100'
     restart: unless-stopped
     mem_limit: 128m
-    cpus: "0.25"
+    cpus: "0.5"
 
 # Umami # ------------------------------------------------------------------------------------------------------------------------
 

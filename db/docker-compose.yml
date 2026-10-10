@@ -9,7 +9,7 @@ services:
       - ./prometheus:/etc/prometheus:ro
       - ./prometheus/data:/prometheus
     restart: unless-stopped
-    mem_limit: 2g
+    mem_limit: 4g
     cpus: "1.5"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
