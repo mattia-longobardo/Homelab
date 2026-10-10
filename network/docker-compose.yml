@@ -58,7 +58,7 @@ services:
 # Cloudflare Tunnel # --------------------------------------------------------------------------------------------------------------
 
   cloudflare:
-    image: cloudflare/cloudflared:2026.8.1
+    image: cloudflare/cloudflared:latest
     container_name: cloudflare
     network_mode: host
     volumes:
@@ -104,8 +104,7 @@ services:
     restart: unless-stopped
     mem_limit: 128m
     cpus: "0.25"
-    networks:
-      - proxy_public
+    network_mode: none
 
   watchtower:
     image: nickfedor/watchtower

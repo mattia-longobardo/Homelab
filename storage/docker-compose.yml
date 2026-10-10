@@ -4,6 +4,7 @@ services:
   bytestash:
     image: "ghcr.io/jordan-dalby/bytestash:latest"
     container_name: bytestash
+    user: "1000:1000"
     restart: unless-stopped
     mem_limit: 512m
     cpus: "0.5"
@@ -13,8 +14,8 @@ services:
       BASE_PATH: ""
       JWT_SECRET: ${BYTESTASH_JWT_SECRET}
       TOKEN_EXPIRY: 24h
-      ALLOW_NEW_ACCOUNTS: "true"
-      DEBUG: "true"
+      ALLOW_NEW_ACCOUNTS: "false"
+      DEBUG: "false"
       DISABLE_ACCOUNTS: "false"
       DISABLE_INTERNAL_ACCOUNTS: "false"
       OIDC_ENABLED: "false"

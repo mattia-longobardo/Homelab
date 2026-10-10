@@ -25,7 +25,7 @@ services:
 # Grafana # --------------------------------------------------------------------------------------------------------------
 
   grafana:
-    image: grafana/grafana-oss:latest
+    image: grafana/grafana:latest
     container_name: grafana
     user: "1000:1000"
     environment:
@@ -152,7 +152,7 @@ services:
 # Monitoring & Metrics Docker # --------------------------------------------------------------------------------------------------------------
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: ghcr.io/google/cadvisor:latest
     container_name: cadvisor
     volumes:
       - /:/rootfs:ro
@@ -164,7 +164,6 @@ services:
     mem_limit: 4g
     cpus: "2.0"
     networks:
-      - proxy_public
       - metrics_internal
 
 # Node Exporter # --------------------------------------------------------------------------------------------------------------
