@@ -122,6 +122,7 @@ services:
       - ./tdarr/server:/app/server
       - ./tdarr/configs:/app/configs
       - ./tdarr/logs:/app/logs
+      - ../backups/tdarr:/app/server/Tdarr/Backups
       - ../../storage/private:/mnt/private
       - ../../storage/tdarr_cache:/temp
     ports:

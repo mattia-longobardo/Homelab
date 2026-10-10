@@ -173,6 +173,7 @@ services:
       - IMMICH_MACHINE_LEARNING_URL=http://immich-ml:3003
     volumes:
       - /home/mattia/storage/photos:/data
+      - ../backups/immich:/data/backups
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     mem_limit: 4g

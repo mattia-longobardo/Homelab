@@ -82,6 +82,8 @@ services:
       FTLCONF_misc_dnsmasq_lines: 'address=/local/192.168.1.220;address=/router.local/192.168.1.1;local=/photo.longobardo.me/;dhcp-option=tag:!known,option:router;dhcp-option=tag:lanonly,option:router'
     volumes:
       - './pihole:/etc/pihole'
+      - ../backups/pihole/config:/etc/pihole/config_backups
+      - ../backups/pihole/gravity:/etc/pihole/gravity_backups
     cap_add:
       - SYS_NICE
       - NET_ADMIN

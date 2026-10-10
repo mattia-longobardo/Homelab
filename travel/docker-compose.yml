@@ -32,6 +32,7 @@ services:
       - SMTP_FROM=${SMTP_NOREPLY_USER}
     volumes:
       - ./trek/data:/app/data
+      - ../backups/trek:/app/data/backups
       - ./trek/uploads:/app/uploads
     restart: unless-stopped
     mem_limit: 1g
