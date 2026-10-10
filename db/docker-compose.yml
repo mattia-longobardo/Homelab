@@ -6,13 +6,15 @@ services:
     container_name: prometheus
     user: "1000:1000"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus:/etc/prometheus:ro
       - ./prometheus/data:/prometheus
     restart: unless-stopped
     mem_limit: 2g
     cpus: "1.5"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--config.auto-reload'
+      - '--config.auto-reload-interval=30s'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
     networks:
