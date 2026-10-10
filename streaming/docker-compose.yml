@@ -88,7 +88,7 @@ services:
       - ../../storage/tv:/tv
       - ../../storage/private:/private
     restart: unless-stopped
-    mem_limit: 2g
+    mem_limit: 1g
     cpus: "2.0"
     labels:
       - 'traefik.enable=true'
@@ -119,11 +119,9 @@ services:
       - ../backups/tdarr:/app/server/Tdarr/Backups
       - ../../storage/private:/mnt/private
       - ../../storage/tdarr_cache:/temp
-    ports:
-      - "8266:8266"
     restart: unless-stopped
     mem_limit: 6g
-    cpus: "8.0"
+    cpus: "4.0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8265"]
       interval: 30s
@@ -140,6 +138,7 @@ services:
       - 'traefik.docker.network=proxy_public'
       - 'traefik.http.routers.tdarr-router.rule=Host(`tdarr.local`)'
       - 'traefik.http.routers.tdarr-router.entrypoints=web'
+      - 'traefik.http.routers.tdarr-router.middlewares=lan-only@file'
       - 'traefik.http.services.tdarr-service.loadbalancer.server.port=8265'
     networks:
       - proxy_public

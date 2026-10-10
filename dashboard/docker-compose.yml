@@ -54,7 +54,14 @@ services:
     restart: unless-stopped
     mem_limit: 1g
     cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     labels:
+      - "autoheal=true"
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
       - "traefik.http.routers.grafana-router.rule=Host(`${GRAFANA_HOST}`)"
@@ -146,6 +153,12 @@ services:
     restart: unless-stopped
     mem_limit: 64m
     cpus: "0.1"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9115/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - metrics_internal
 
@@ -182,7 +195,7 @@ services:
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /:/rootfs:rw,rslave
+      - /:/rootfs:ro,rslave
       - /run/udev:/run/udev:ro
     command:
       - '--path.procfs=/host/proc'

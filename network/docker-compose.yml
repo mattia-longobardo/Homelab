@@ -5,8 +5,11 @@ services:
   traefik:
     image: traefik:latest
     container_name: traefik
+    depends_on:
+      - socket-proxy
     command:
       - "--providers.docker=true"
+      - "--providers.docker.endpoint=tcp://socket-proxy:2375"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--entrypoints.web.address=:80"
@@ -17,7 +20,7 @@ services:
       - "--entrypoints.websecure.transport.respondingTimeouts.idleTimeout=0"
       - "--entrypoints.metrics.address=:8082"
       - "--api.dashboard=true"
-      - "--api.insecure=true"
+      - "--ping=true"
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.entrypoint=metrics"
       - "--metrics.prometheus.addEntryPointsLabels=true"
@@ -40,20 +43,46 @@ services:
     mem_limit: 512m
     cpus: "0.75"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/dynamic:/etc/traefik/dynamic
       - ./traefik/letsencrypt:/letsencrypt
       - ./traefik/logs:/var/log/traefik
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - proxy_public
       - metrics_internal
+      - socket_internal
     labels:
+      - "autoheal=true"
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
       - "traefik.http.routers.traefik-router.rule=Host(`proxy.local`)"
       - "traefik.http.routers.traefik-router.entrypoints=web"
-      - "traefik.http.routers.traefik-router.service=traefik-service"
-      - "traefik.http.services.traefik-service.loadbalancer.server.port=8080"
+      - "traefik.http.routers.traefik-router.service=api@internal"
+      - "traefik.http.routers.traefik-router.middlewares=lan-only@file"
+
+# Docker Socket Proxy # --------------------------------------------------------------------------------------------------------------
+
+  socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy:latest
+    container_name: socket-proxy
+    environment:
+      - CONTAINERS=1
+      - TZ=Europe/Rome
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    restart: unless-stopped
+    mem_limit: 64m
+    cpus: "0.25"
+    networks:
+      - socket_internal
 
 # Cloudflare Tunnel # --------------------------------------------------------------------------------------------------------------
 
@@ -67,6 +96,14 @@ services:
     restart: always
     mem_limit: 256m
     cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "autoheal=true"
 
 # Pi-hole # --------------------------------------------------------------------------------------------------------------
 
@@ -79,6 +116,7 @@ services:
       FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
       FTLCONF_webserver_port: 1000
       FTLCONF_dns_cache_size: 10000
+      FTLCONF_database_maxDBdays: 30
     volumes:
       - './pihole:/etc/pihole'
       - ../backups/pihole/config:/etc/pihole/config_backups
@@ -205,3 +243,6 @@ networks:
     name: metrics_internal
   mail_internal:
     name: mail_internal
+  socket_internal:
+    name: socket_internal
+    internal: true

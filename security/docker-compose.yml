@@ -97,10 +97,13 @@ services:
 # Frigate # --------------------------------------------------------------------------------------------------------------
 
   frigate:
+    image: ghcr.io/blakeblackshear/frigate:stable
     container_name: frigate
     stop_grace_period: 20s
-    image: ghcr.io/blakeblackshear/frigate:stable
     shm_size: "512mb"
+    environment:
+      - FRIGATE_RTSP_USER=${FRIGATE_RTSP_USER}
+      - FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASSWORD}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./frigate/config:/config
