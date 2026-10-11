@@ -241,6 +241,10 @@ networks:
     name: proxy_public
   metrics_internal:
     name: metrics_internal
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
   mail_internal:
     name: mail_internal
   socket_internal:
