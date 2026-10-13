@@ -65,6 +65,7 @@ services:
       PAPERLESS_EMAIL_HOST_PASSWORD: ${SMTP_NOREPLY_PASSWORD}
       PAPERLESS_EMAIL_FROM: ${SMTP_NOREPLY_USER}
       PAPERLESS_AI_LLM_USE_RESPONSES_API: "true"
+      PAPERLESS_WORKFLOW_SCHEDULED_TASK_CRON: "5 3 * * 5"
     restart: unless-stopped
     mem_limit: 4g
     cpus: "2.0"
