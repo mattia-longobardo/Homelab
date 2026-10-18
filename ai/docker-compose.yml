@@ -1,0 +1,165 @@
+services:
+
+# Multica Backend # --------------------------------------------------------------------------------------------------------------
+  multica-backend:
+    image: ghcr.io/multica-ai/multica-backend:latest
+    container_name: multica-backend
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Rome
+      - APP_ENV=production
+      - PORT=8080
+      - DATABASE_URL=postgres://multica:${DB_MULTICA_PASSWORD}@postgres:5432/multica?sslmode=disable
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/6
+      - REDIS_CLUSTER_MODE=false
+      - JWT_SECRET=${MULTICA_JWT_SECRET}
+      - MULTICA_VCS_SECRET_KEY=${MULTICA_VCS_SECRET_KEY}
+      - FRONTEND_ORIGIN=https://${MULTICA_HOST}
+      - MULTICA_APP_URL=https://${MULTICA_HOST}
+      - MULTICA_PUBLIC_URL=https://${MULTICA_HOST}
+      - MULTICA_DAEMON_SERVER_URL=https://${MULTICA_HOST}
+      - CORS_ALLOWED_ORIGINS=https://${MULTICA_HOST}
+      - MULTICA_TRUSTED_PROXIES=172.18.0.0/16
+      - RATE_LIMIT_TRUSTED_PROXIES=172.18.0.0/16
+      - ALLOW_SIGNUP=true
+      - ALLOWED_EMAILS=${MULTICA_ALLOWED_EMAILS}
+      - DISABLE_WORKSPACE_CREATION=false
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=465
+      - SMTP_TLS=implicit
+      - SMTP_USERNAME=${SMTP_NOREPLY_USER}
+      - SMTP_PASSWORD=${SMTP_NOREPLY_PASSWORD}
+      - SMTP_FROM_EMAIL=${SMTP_NOREPLY_USER}
+      - S3_BUCKET=multica
+      - S3_REGION=us-east-1
+      - AWS_ENDPOINT_URL=http://silo:9000
+      - S3_USE_PATH_STYLE=true
+      - AWS_ACCESS_KEY_ID=${MULTICA_S3_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${MULTICA_S3_SECRET_KEY}
+      - ATTACHMENT_DOWNLOAD_MODE=proxy
+      - MULTICA_LLM_API_KEY=${OPENAI_API_KEY}
+      - MULTICA_LLM_BASE_URL=https://api.openai.com/v1
+      - MULTICA_LLM_DEFAULT_MODEL=${MULTICA_LLM_MODEL}
+      - DO_NOT_TRACK=1
+      - ANALYTICS_DISABLED=true
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.multica-backend-router.rule=Host(`${MULTICA_HOST}`) && (PathPrefix(`/ws`) || PathPrefix(`/api/daemon/ws`) || Path(`/health`))"
+      - "traefik.http.routers.multica-backend-router.priority=100"
+      - "traefik.http.routers.multica-backend-router.entrypoints=web"
+      - "traefik.http.routers.multica-backend-router.service=multica-backend-service"
+      - "traefik.http.services.multica-backend-service.loadbalancer.server.port=8080"
+      - "traefik.http.middlewares.multica-https.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.multica-backend-router.middlewares=multica-https"
+    networks:
+      - proxy_public
+      - db_internal
+      - mail_internal
+
+# Multica Web # --------------------------------------------------------------------------------------------------------------
+  multica-web:
+    image: ghcr.io/multica-ai/multica-web:latest
+    container_name: multica-web
+    user: "1000:1000"
+    depends_on:
+      - multica-backend
+    environment:
+      - TZ=Europe/Rome
+      - HOSTNAME=0.0.0.0
+      - PORT=3000
+      - REMOTE_API_URL=http://multica-backend:8080
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.multica-router.rule=Host(`${MULTICA_HOST}`)"
+      - "traefik.http.routers.multica-router.entrypoints=web"
+      - "traefik.http.routers.multica-router.service=multica-service"
+      - "traefik.http.services.multica-service.loadbalancer.server.port=3000"
+      - "traefik.http.routers.multica-router.middlewares=multica-https"
+    networks:
+      - proxy_public
+
+# Hindsight # --------------------------------------------------------------------------------------------------------------
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest-slim
+    container_name: hindsight
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Rome
+      - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:${DB_HINDSIGHT_PASSWORD}@postgres:5432/hindsight
+      - HINDSIGHT_API_WORKER_ID=hindsight
+      - HINDSIGHT_API_LLM_PROVIDER=openai
+      - HINDSIGHT_API_LLM_API_KEY=${OPENAI_API_KEY}
+      - HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_LLM_MODEL}
+      - HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
+      - HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY=${OPENAI_API_KEY}
+      - HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL=text-embedding-3-small
+      - HINDSIGHT_API_RERANKER_PROVIDER=rrf
+      - HINDSIGHT_API_FILE_STORAGE_TYPE=s3
+      - HINDSIGHT_API_FILE_STORAGE_S3_BUCKET=hindsight
+      - HINDSIGHT_API_FILE_STORAGE_S3_REGION=us-east-1
+      - HINDSIGHT_API_FILE_STORAGE_S3_ENDPOINT=http://silo:9000
+      - HINDSIGHT_API_FILE_STORAGE_S3_ACCESS_KEY_ID=${HINDSIGHT_S3_ACCESS_KEY}
+      - HINDSIGHT_API_FILE_STORAGE_S3_SECRET_ACCESS_KEY=${HINDSIGHT_S3_SECRET_KEY}
+      - HINDSIGHT_API_TENANT_EXTENSION=hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
+      - HINDSIGHT_API_TENANT_API_KEY=${HINDSIGHT_API_KEY}
+      - HINDSIGHT_API_MCP_AUTH_TOKEN=${HINDSIGHT_API_KEY}
+      - HINDSIGHT_CP_ACCESS_KEY=${HINDSIGHT_CP_ACCESS_KEY}
+      - HINDSIGHT_CP_DATAPLANE_API_KEY=${HINDSIGHT_API_KEY}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 2g
+    cpus: "2.0"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8888/health', timeout=4); u.urlopen('http://127.0.0.1:9999/api/health', timeout=4)"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.hindsight-router.rule=Host(`${HINDSIGHT_HOST}`)"
+      - "traefik.http.routers.hindsight-router.entrypoints=web"
+      - "traefik.http.routers.hindsight-router.service=hindsight-service"
+      - "traefik.http.services.hindsight-service.loadbalancer.server.port=9999"
+      - "traefik.http.routers.hindsight-api-router.rule=Host(`${HINDSIGHT_API_HOST}`)"
+      - "traefik.http.routers.hindsight-api-router.entrypoints=web"
+      - "traefik.http.routers.hindsight-api-router.service=hindsight-api-service"
+      - "traefik.http.services.hindsight-api-service.loadbalancer.server.port=8888"
+      - "traefik.http.middlewares.hindsight-https.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.hindsight-router.middlewares=hindsight-https"
+      - "traefik.http.routers.hindsight-api-router.middlewares=hindsight-https"
+    networks:
+      - proxy_public
+      - db_internal
+
+networks:
+  proxy_public:
+    external: true
+  db_internal:
+    external: true
+  mail_internal:
+    external: true
