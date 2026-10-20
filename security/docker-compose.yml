@@ -121,7 +121,7 @@ services:
     cpus: "4.0"
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.frigate-router.rule=Host(`cam.local`)'
+      - 'traefik.http.routers.frigate-router.rule=Host(`cam.lan`)'
       - 'traefik.http.routers.frigate-router.entrypoints=web'
       - 'traefik.http.services.frigate-service.loadbalancer.server.port=5000'
     networks:

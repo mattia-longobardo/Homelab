@@ -60,7 +60,7 @@ services:
       - "autoheal=true"
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.traefik-router.rule=Host(`proxy.local`)"
+      - "traefik.http.routers.traefik-router.rule=Host(`proxy.lan`)"
       - "traefik.http.routers.traefik-router.entrypoints=web"
       - "traefik.http.routers.traefik-router.service=api@internal"
       - "traefik.http.routers.traefik-router.middlewares=lan-only@file"

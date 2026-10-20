@@ -41,7 +41,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy_public"
-      - "traefik.http.routers.plex-router.rule=Host(`plex.local`) || Host(`${PLEX_HOST}`)"
+      - "traefik.http.routers.plex-router.rule=Host(`plex.lan`) || Host(`${PLEX_HOST}`)"
       - "traefik.http.routers.plex-router.entrypoints=web"
       - "traefik.http.services.plex-service.loadbalancer.server.port=32400"
 
@@ -92,7 +92,7 @@ services:
     cpus: "2.0"
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.qbittorrent-router.rule=Host(`torrent.local`)'
+      - 'traefik.http.routers.qbittorrent-router.rule=Host(`torrent.lan`)'
       - 'traefik.http.routers.qbittorrent-router.entrypoints=web'
       - 'traefik.http.services.qbittorrent-service.loadbalancer.server.port=8080'
     networks:
