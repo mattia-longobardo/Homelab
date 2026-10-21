@@ -15,9 +15,17 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.portainer-router.rule=Host(`${PORTAINER_HOST}`)"
       - "traefik.http.routers.portainer-router.entrypoints=web"
-      - "traefik.http.routers.portainer-router.middlewares=portainer-xfp@docker"
+      - "traefik.http.routers.portainer-router.middlewares=portainer-xfp@docker,authentik-fwd@docker"
+      - "traefik.http.routers.portainer-router.service=portainer-service"
       - "traefik.http.middlewares.portainer-xfp.headers.customrequestheaders.X-Forwarded-Proto=https"
       - "traefik.http.middlewares.portainer-xfp.headers.customrequestheaders.X-Forwarded-Port=443"
+      - "traefik.http.middlewares.authentik-fwd.forwardauth.address=http://authentik-server:9000/outpost.goauthentik.io/auth/traefik"
+      - "traefik.http.middlewares.authentik-fwd.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.authentik-fwd.forwardauth.authResponseHeaders=X-authentik-username,X-authentik-groups,X-authentik-email,X-authentik-name,X-authentik-uid"
+      - "traefik.http.routers.portainer-outpost.rule=Host(`${PORTAINER_HOST}`) && PathPrefix(`/outpost.goauthentik.io/`)"
+      - "traefik.http.routers.portainer-outpost.entrypoints=web"
+      - "traefik.http.routers.portainer-outpost.middlewares=portainer-xfp@docker"
+      - "traefik.http.routers.portainer-outpost.service=authentik-service@docker"
       - "traefik.http.services.portainer-service.loadbalancer.server.port=9000"
     networks:
       - proxy_public
@@ -94,6 +102,43 @@ services:
       - "traefik.http.routers.gotify-router.rule=Host(`${GOTIFY_HOST}`)"
       - "traefik.http.routers.gotify-router.entrypoints=web"
       - "traefik.http.services.gotify-service.loadbalancer.server.port=80"
+    networks:
+      - proxy_public
+
+# Gotify MCP # --------------------------------------------------------------------------------------------------------------
+
+  gotify-mcp:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    container_name: gotify-mcp
+    user: "1000:1000"
+    depends_on:
+      - gotify
+    command: ["uv", "run", "--script", "/data/gotify_send.py"]
+    environment:
+      - TZ=Europe/Rome
+      - UV_CACHE_DIR=/data/cache
+      - GOTIFY_URL=http://gotify
+      - GOTIFY_APP_TOKEN=${GOTIFY_MCP_APP_TOKEN}
+      - MCP_API_KEY=${GOTIFY_MCP_API_KEY}
+      - MCP_HOST=${GOTIFY_MCP_HOST}
+    volumes:
+      - ./gotify-mcp:/data
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy_public"
+      - "traefik.http.routers.gotify-mcp-router.rule=Host(`${GOTIFY_MCP_HOST}`)"
+      - "traefik.http.routers.gotify-mcp-router.entrypoints=web"
+      - "traefik.http.services.gotify-mcp-service.loadbalancer.server.port=8000"
     networks:
       - proxy_public
 
@@ -191,7 +236,6 @@ services:
     container_name: node-exporter
     pid: host
     network_mode: host
-    privileged: true
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro

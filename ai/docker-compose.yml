@@ -14,6 +14,10 @@ services:
       - REDIS_CLUSTER_MODE=false
       - JWT_SECRET=${MULTICA_JWT_SECRET}
       - MULTICA_VCS_SECRET_KEY=${MULTICA_VCS_SECRET_KEY}
+      - GITHUB_APP_ID=${MULTICA_GITHUB_APP_ID}
+      - GITHUB_APP_SLUG=${MULTICA_GITHUB_APP_SLUG}
+      - GITHUB_APP_PRIVATE_KEY=${MULTICA_GITHUB_APP_PRIVATE_KEY}
+      - GITHUB_WEBHOOK_SECRET=${MULTICA_GITHUB_WEBHOOK_SECRET}
       - FRONTEND_ORIGIN=https://${MULTICA_HOST}
       - MULTICA_APP_URL=https://${MULTICA_HOST}
       - MULTICA_PUBLIC_URL=https://${MULTICA_HOST}
@@ -108,6 +112,7 @@ services:
       - TZ=Europe/Rome
       - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:${DB_HINDSIGHT_PASSWORD}@postgres:5432/hindsight
       - HINDSIGHT_API_WORKER_ID=hindsight
+      - HINDSIGHT_API_WORKER_MAX_SLOTS=4
       - HINDSIGHT_API_LLM_PROVIDER=openai
       - HINDSIGHT_API_LLM_API_KEY=${OPENAI_API_KEY}
       - HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_LLM_MODEL}
@@ -128,7 +133,7 @@ services:
       - HINDSIGHT_CP_DATAPLANE_API_KEY=${HINDSIGHT_API_KEY}
     restart: unless-stopped
     stop_grace_period: 30s
-    mem_limit: 2g
+    mem_limit: 4g
     cpus: "2.0"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8888/health', timeout=4); u.urlopen('http://127.0.0.1:9999/api/health', timeout=4)"]

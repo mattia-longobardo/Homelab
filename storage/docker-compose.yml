@@ -87,6 +87,7 @@ services:
   db:
     image: mariadb:10.11
     container_name: seafile-mysql
+    command: ["mariadbd", "--innodb-buffer-pool-size=256M", "--slow-query-log=1", "--long-query-time=1"]
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_SEAFILE_PASSWORD}
       - MYSQL_LOG_CONSOLE=true
@@ -116,8 +117,8 @@ services:
       - NON_ROOT=true
       - SEAFILE_MYSQL_DB_HOST=db
       - SEAFILE_MYSQL_DB_PORT=3306
-      - SEAFILE_MYSQL_DB_USER=root
-      - SEAFILE_MYSQL_DB_PASSWORD=${DB_SEAFILE_PASSWORD}
+      - SEAFILE_MYSQL_DB_USER=seafile
+      - SEAFILE_MYSQL_DB_PASSWORD=${DB_SEAFILE_APP_PASSWORD}
       - INIT_SEAFILE_MYSQL_ROOT_PASSWORD=${DB_SEAFILE_PASSWORD}
       - SEAFILE_MYSQL_DB_CCNET_DB_NAME=ccnet_db
       - SEAFILE_MYSQL_DB_SEAFILE_DB_NAME=seafile_db

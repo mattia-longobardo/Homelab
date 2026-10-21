@@ -84,6 +84,29 @@ services:
     networks:
       - socket_internal
 
+  socket-proxy-rw:
+    image: lscr.io/linuxserver/socket-proxy:latest
+    container_name: socket-proxy-rw
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - NETWORKS=1
+      - DISTRIBUTION=1
+      - INFO=1
+      - POST=1
+      - ALLOW_RESTARTS=1
+      - TZ=Europe/Rome
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    restart: unless-stopped
+    mem_limit: 64m
+    cpus: "0.25"
+    networks:
+      - socket_rw
+
 # Cloudflare Tunnel # --------------------------------------------------------------------------------------------------------------
 
   cloudflare:
@@ -136,25 +159,31 @@ services:
     environment:
       - AUTOHEAL_CONTAINER_LABEL=autoheal
       - AUTOHEAL_INTERVAL=60
-    volumes:
-      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - DOCKER_SOCK=tcp://socket-proxy-rw:2375
+    depends_on:
+      - socket-proxy-rw
     restart: unless-stopped
     mem_limit: 128m
     cpus: "0.25"
-    network_mode: none
+    networks:
+      - socket_rw
 
   watchtower:
     image: nickfedor/watchtower
     container_name: watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
+      - DOCKER_HOST=tcp://socket-proxy-rw:2375
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_POLL_INTERVAL=21600
       - TZ=Europe/Rome
+    depends_on:
+      - socket-proxy-rw
     restart: unless-stopped
     mem_limit: 256m
     cpus: "0.5"
+    networks:
+      - default
+      - socket_rw
 
 # Error Pages # --------------------------------------------------------------------------------------------------------------
 
@@ -249,4 +278,7 @@ networks:
     name: mail_internal
   socket_internal:
     name: socket_internal
+    internal: true
+  socket_rw:
+    name: socket_rw
     internal: true
