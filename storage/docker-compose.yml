@@ -237,7 +237,7 @@ services:
       - immich_internal
 
   immich-postgres:
-    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+    image: ghcr.io/immich-app/postgres:17-vectorchord0.4.3-pgvector0.8.1
     container_name: immich-postgres
     user: "1000:1000"
     environment:
@@ -246,7 +246,7 @@ services:
       - POSTGRES_DB=immich
       - POSTGRES_INITDB_ARGS=--data-checksums
     volumes:
-      - ./immich/postgres:/var/lib/postgresql/data
+      - ./immich/postgres17:/var/lib/postgresql/data
     shm_size: 256m
     restart: unless-stopped
     mem_limit: 2g
